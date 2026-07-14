@@ -150,20 +150,28 @@ class UAVState:
     @contextmanager
     def exclusive(self, settle: float = 0.25):
         """
-        Temporarily suspend the telemetry recv loop so the calling thread has
-        SOLE access to the MAVLink socket.
-
-        pymavlink connections are not safe to read from two threads at once:
-        whichever recv_match() fires first consumes the frame. During a mission
-        upload or mode-set handshake the background loop would otherwise steal
-        the MISSION_REQUEST / MISSION_ACK / HEARTBEAT replies the caller is
-        waiting for, causing "upload timed out" / "mode change timed out".
-
-        Usage:
-            with uav.exclusive():
-                master.mav.mission_count_send(...)
-                master.recv_match(type="MISSION_REQUEST", ...)
+        Acquire exclusive MAVLink socket access using a dual-event
+        pause/confirm handshake.
+ 
+        PROBLEM: pymavlink provides a single shared socket. When a background
+        telemetry thread and a foreground protocol handshake (mission upload,
+        mode-set) both call recv_match() concurrently, either can consume the
+        other's reply packet — MISSION_ACK, MISSION_REQUEST, or HEARTBEAT.
+        This produces non-deterministic upload failures and mode-set timeouts.
+ 
+        SOLUTION: A two-phase pause protocol.
+            1. Caller sets _pause_req (Event) — signals thread to stop.
+            2. Thread sets _paused (Event) — confirms it has stopped.
+            3. Caller waits on _paused.wait() — blocks until confirmation.
+            4. settle-second sleep absorbs any recv_match already in flight.
+            5. Caller holds exclusive socket access inside the 'with' block.
+            6. On exit, both events cleared — thread resumes.
+ 
+        This pattern is generalisable to any multi-threaded PyMavlink
+        application requiring transactional protocol handshakes alongside
+        continuous telemetry polling.
         """
+        
         # No running loop (e.g. called before start()) → nothing to pause.
         if self._thread is None or not self._thread.is_alive():
             yield self._master

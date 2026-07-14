@@ -73,7 +73,6 @@ def call_ollama(model_name: str, prompt: str, temperature: float = 0.0) -> str:
         resp = requests.post(
             _BASE_URL,
             json=payload,
-            headers=_HEADERS,
             timeout=_TIMEOUT,
         )
         resp.raise_for_status()
