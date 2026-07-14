@@ -891,8 +891,19 @@ def run_reflexion_mission(scenario_id: str = "SC1",
         midpoint_ok = _fly_mission_to(master, uav,
                                       [(MIDPOINT_LAT, MIDPOINT_LON, CRUISE_ALT)],
                                       "MIDPOINT")
+        
+        # FIXED — explicit scope disclosure at Phase 3
+        # --- PHASE 3: SINGLE LLM DECISION — anomaly response (RESEARCH NOTE) ---
+        # Reflexion is implemented here as a scoped single-decision paradigm.
+        # Navigation phases (1, 2, 4, 5) are scripted Python — the LLM is invoked
+        # ONCE per attempt for the highest-stakes decision: anomaly response.
+        # This scope was chosen after observing that a full multi-step Actor
+        # stalled repeatedly in early runs (documented as a Reflexion failure mode).
+        # Cross-attempt learning still occurs: the Critic writes a reflection after
+        # each run and the Actor reads all past reflections at the start of the next.
+        # This design is explicitly disclosed in the paper's methodology section.
 
-        # --- PHASE 3: ONE LLM decision — how to respond to the anomaly ---
+        
         log.info("=== PHASE 3: LLM DECISION — anomaly response ===")
         telemetry = uav.get_state()
         telemetry["mission_phase"]   = "ANOMALY_DECISION"
