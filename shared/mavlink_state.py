@@ -208,10 +208,12 @@ class UAVState:
 
     def trigger_anomaly(self) -> None:
         """
-        Flag an anomaly and reduce wind_speed to 40% of current airspeed.
-
-        Sets anomaly_triggered=True and wind_speed = airspeed * 0.40,
-        simulating the effective speed loss from a strong headwind event.
+        RESEARCH NOTE — simulation scope:
+        This method injects anomaly conditions into the Python telemetry
+        state dictionary. ArduPilot SITL does not physically simulate wind
+        or thermal events. The LLM agent observes these conditions through
+        the prompt (via telemetry fields), not through real sensor data.
+        This is explicitly disclosed in the paper's methodology section.
         """
         with self._lock:
             self._state["anomaly_triggered"] = True
