@@ -19,7 +19,7 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from shared.mavlink_state import UAVState, telemetry_paused
-from shared.llm_utils import call_ollama, parse_json_response, MODEL_PLANNER, MODEL_CRITIC
+from shared.llm_utils import call_ollama, parse_json_response, MODEL_ACTOR, MODEL_CRITIC
 from shared.tools import (
     HOME_LAT, HOME_LON,
     WP_ALPHA_LAT, WP_ALPHA_LON,
@@ -561,7 +561,7 @@ def call_actor(
 
     for tool_round in range(_MAX_TOOL_CALLS + 1):
         _llm_calls += 1
-        raw    = call_ollama(MODEL_PLANNER, prompt)
+        raw    = call_ollama(MODEL_ACTOR, prompt)
         parsed = parse_json_response(raw)
 
         if not parsed:
@@ -840,7 +840,7 @@ def run_reflexion_mission(scenario_id: str = "SC1",
         run_number = next_run_number("Reflexion", scenario_id)
     log.info("=" * 60)
     log.info("PARADIGM C: Reflexion Agent — Wildfire Boundary Mapping")
-    log.info("Actor/Critic: %s / %s", MODEL_PLANNER, MODEL_CRITIC)
+    log.info("Actor/Critic: %s / %s", MODEL_ACTOR, MODEL_CRITIC)
     log.info("Run    : %s run %d", scenario_id, run_number)
     log.info("=== ATTEMPT %d ===", attempt_number)
     log.info("Log    : %s", _LOG_FILE)
@@ -911,7 +911,7 @@ def run_reflexion_mission(scenario_id: str = "SC1",
             f"Attempt {attempt_number}. Past attempts: {attempt_number - 1}"
         )
 
-        log.info("[ACTOR] Calling %s for anomaly decision ...", MODEL_PLANNER)
+        log.info("[ACTOR] Calling %s for anomaly decision ...", MODEL_ACTOR)
         action = call_actor(telemetry, memory, history, uav.get_state())
         commands_issued.append(action)
         log.info("[ACTOR] Decision: %s %s",
@@ -999,7 +999,7 @@ def run_reflexion_mission(scenario_id: str = "SC1",
 
         log_run(
             paradigm="Reflexion",
-            model_primary=MODEL_PLANNER,
+            model_primary=MODEL_ACTOR,
             model_secondary=MODEL_CRITIC,
             scenario_id=scenario_id,
             run_number=run_number,

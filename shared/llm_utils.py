@@ -20,6 +20,7 @@ MODEL_REACT    = "llama3"
 MODEL_PLANNER  = "qwen2.5:7b"
 MODEL_EXECUTOR = "mistral"
 MODEL_CRITIC   = "llama3"
+MODEL_ACTOR    = "qwen2.5:7b"
 
 # ---------------------------------------------------------------------------
 # Config
