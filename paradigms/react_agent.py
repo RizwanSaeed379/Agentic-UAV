@@ -39,6 +39,7 @@ from shared.tools import (
 )
 from shared.prompts import REACT_SYSTEM_PROMPT
 from shared.agent_loop import agent_step
+from shared.logger import log_run
 from pymavlink import mavutil
 
 # ---------------------------------------------------------------------------
@@ -358,7 +359,8 @@ def execute_flight_command(master, uav, command_dict):
 # ---------------------------------------------------------------------------
 # Main ReAct mission — continuous reasoning loop
 # ---------------------------------------------------------------------------
-def run_react_mission():
+def run_react_mission(scenario_id: str = "SC1", run_number: int = 1):
+    t_start = time.time()
     log.info("=" * 60)
     log.info("PARADIGM A: ReAct Agent — Wildfire Boundary Mapping")
     log.info("Model  : %s", MODEL_REACT)
@@ -445,6 +447,8 @@ def run_react_mission():
     mid_ok      = False
     anomaly_ok  = False
     bravo_ok    = False
+    llm_calls   = 0
+    interrupted = False
 
     try:
         while True:
@@ -522,6 +526,7 @@ def run_react_mission():
             # g. Call LLM — EVERY iteration (TRANSIT and ANOMALY_INVESTIGATION)
             log.info("[LLM] Calling %s (step %d, phase=%s) ...",
                      MODEL_REACT, step_n, mission_phase)
+            llm_calls += 1
             cmd = agent_step(
                 model=MODEL_REACT,
                 system_prompt=REACT_SYSTEM_PROMPT,
@@ -560,6 +565,7 @@ def run_react_mission():
                 break
 
     except KeyboardInterrupt:
+        interrupted = True
         log.warning("Interrupted — RTL")
         set_mode(master, "RTL")
 
@@ -572,6 +578,33 @@ def run_react_mission():
         log.info("  WP_BRAVO reached    : %s", bravo_ok)
         log.info("  ReAct steps taken   : %d", step_n)
         log.info("=" * 60)
+
+        waypoints = []
+        if wp_alpha_ok: waypoints.append("WP_ALPHA")
+        if mid_ok:      waypoints.append("MIDPOINT")
+        if anomaly_ok:  waypoints.append("ANOMALY")
+        if bravo_ok:    waypoints.append("WP_BRAVO")
+
+        if interrupted:  outcome = "ABORTED_RTL"
+        elif bravo_ok:   outcome = "COMPLETED"
+        else:            outcome = "FAILED"
+
+        log_run(
+            paradigm="ReAct",
+            model_primary=MODEL_REACT,
+            model_secondary="",
+            scenario_id=scenario_id,
+            run_number=run_number,
+            outcome=outcome,
+            failure_type="NONE" if outcome == "COMPLETED" else "REASONING",
+            waypoints_visited=waypoints,
+            anomaly_response="LOITER_TURNS" if anomaly_ok else "NONE",
+            llm_calls=llm_calls,
+            duration_seconds=time.time() - t_start,
+            telemetry_final=uav.get_state(),
+            notes=f"ReAct steps taken: {step_n}",
+        )
+
         uav.stop()
         master.close()
 

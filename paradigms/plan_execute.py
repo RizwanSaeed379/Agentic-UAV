@@ -33,6 +33,7 @@ from shared.tools import (
     execute_tool, TOOL_REGISTRY,
 )
 from shared.prompts import PLAN_EXECUTE_SYSTEM_PROMPT
+from shared.logger import log_run
 from pymavlink import mavutil
 
 # ---------------------------------------------------------------------------
@@ -79,6 +80,8 @@ PLANE_MODES = {
     11:"RTL",12:"LOITER",13:"TAKEOFF",14:"AVOID_ADSB",15:"GUIDED",16:"INITIALISING",
 }
 _MODE_REVERSE = {v:k for k,v in PLANE_MODES.items()}
+
+_llm_calls = 0   # total planner + executor LLM calls this run
 
 _SAFE_DEFAULT_PLAN = [
     {"command":"NAV_WAYPOINT","params":{"lat":WP_BRAVO_LAT,"lon":WP_BRAVO_LON,"alt":CRUISE_ALT}},
@@ -394,6 +397,7 @@ def _fly_loiter(master, uav, lat, lon, alt, turns, radius):
 # Planner
 # ---------------------------------------------------------------------------
 def call_planner(mission_context: str, past_steps: list) -> list:
+    global _llm_calls
     completed_summary = (
         "\n".join(f"  {i+1}. {s.get('command','?')} {s.get('params',{})}"
                   for i, s in enumerate(past_steps))
@@ -413,6 +417,7 @@ def call_planner(mission_context: str, past_steps: list) -> list:
     )
     for attempt in range(1, _PLANNER_RETRIES + 2):
         log.info("PLANNER called (attempt %d/%d) ...", attempt, _PLANNER_RETRIES+1)
+        _llm_calls += 1
         raw    = call_ollama(MODEL_PLANNER, prompt)
         parsed = parse_json_response(raw)
         if parsed.get("type") == "mission_plan":
@@ -459,6 +464,7 @@ _EXECUTOR_RETRY = (
 )
 
 def call_executor(step: dict, telemetry: dict) -> dict:
+    global _llm_calls
     # Python battery override — never trust LLM for safety
     bat = telemetry.get("battery_pct", 100)
     if 0 <= bat < 25:
@@ -473,6 +479,7 @@ def call_executor(step: dict, telemetry: dict) -> dict:
     prompt = base
 
     for attempt in range(1, 3):
+        _llm_calls += 1
         raw    = call_ollama(MODEL_EXECUTOR, prompt)
         parsed = parse_json_response(raw)
         if parsed.get("type") == "flight_command" and "command" in parsed:
@@ -545,7 +552,10 @@ def execute_flight_command(master, cmd_dict: dict, uav: UAVState) -> bool:
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
-def run_plan_execute_mission() -> None:
+def run_plan_execute_mission(scenario_id: str = "SC1", run_number: int = 1) -> None:
+    global _llm_calls
+    _llm_calls = 0
+    t_start = time.time()
     log.info("="*60)
     log.info("PARADIGM B: Plan-and-Execute — Wildfire Boundary Mapping")
     log.info("Planner : %s", MODEL_PLANNER)
@@ -726,6 +736,7 @@ def run_plan_execute_mission() -> None:
     bravo_ok    = False
     anomaly_fired = False
     replan_count  = 0
+    interrupted   = False
 
     # Waypoint sequence numbers in the full mission
     SEQ_WP_ALPHA  = 2
@@ -966,6 +977,7 @@ def run_plan_execute_mission() -> None:
             time.sleep(_POLL_S)
 
     except KeyboardInterrupt:
+        interrupted = True
         log.warning("Interrupted — RTL")
         set_mode(master, "RTL")
 
@@ -978,8 +990,36 @@ def run_plan_execute_mission() -> None:
         log.info("  WP_BRAVO reached    : %s", bravo_ok)
         log.info("  Replans             : %d", replan_count)
         log.info("="*60)
+
+        waypoints = []
+        if wp_alpha_ok: waypoints.append("WP_ALPHA")
+        if midpoint_ok: waypoints.append("MIDPOINT")
+        if loiter_ok:   waypoints.append("ANOMALY")
+        if bravo_ok:    waypoints.append("WP_BRAVO")
+
+        if interrupted:  outcome = "ABORTED_RTL"
+        elif bravo_ok:   outcome = "COMPLETED"
+        else:            outcome = "FAILED"
+
+        log_run(
+            paradigm="PlanExecute",
+            model_primary=MODEL_PLANNER,
+            model_secondary=MODEL_EXECUTOR,
+            scenario_id=scenario_id,
+            run_number=run_number,
+            outcome=outcome,
+            failure_type="NONE" if outcome == "COMPLETED" else "REPLANNING",
+            waypoints_visited=waypoints,
+            anomaly_response="LOITER_TURNS" if loiter_ok else "NONE",
+            llm_calls=_llm_calls,
+            duration_seconds=time.time() - t_start,
+            telemetry_final=uav.get_state(),
+            notes=f"Replans: {replan_count}",
+        )
+
         uav.stop()
         master.close()
+    
 
 
 if __name__ == "__main__":

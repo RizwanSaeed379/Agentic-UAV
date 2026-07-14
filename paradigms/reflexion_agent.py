@@ -30,6 +30,7 @@ from shared.tools import (
     execute_tool, TOOL_REGISTRY,
 )
 from shared.prompts import REFLEXION_SYSTEM_PROMPT
+from shared.logger import log_run
 from pymavlink import mavutil
 import threading
 import time
@@ -95,6 +96,8 @@ PLANE_MODES: dict[int, str] = {
     13: "TAKEOFF",    14:  "AVOID_ADSB", 15: "GUIDED",    16: "INITIALISING",
 }
 _MODE_REVERSE = {v: k for k, v in PLANE_MODES.items()}
+
+_llm_calls = 0   # total actor + critic LLM calls this run
 
 _SAFE_RTL = {"type": "flight_command", "command": "RTL", "params": {}}
 
@@ -534,6 +537,7 @@ def call_actor(
     Handles tool calls (up to _MAX_TOOL_CALLS rounds) before returning
     a flight command. Falls back to RTL after _MAX_PARSE_TRIES failures.
     """
+    global _llm_calls
     telemetry_lines = "\n".join(f"  {k}: {v}" for k, v in telemetry.items())
     history_block   = (
         "\n".join(f"  {h}" for h in history)
@@ -556,6 +560,7 @@ def call_actor(
     parse_fails = 0
 
     for tool_round in range(_MAX_TOOL_CALLS + 1):
+        _llm_calls += 1
         raw    = call_ollama(MODEL_PLANNER, prompt)
         parsed = parse_json_response(raw)
 
@@ -626,6 +631,8 @@ def call_critic(
     Returns a critique dict with keys: outcome, failure_reason, lessons, severity.
     Falls back to _DEFAULT_CRITIQUE if parsing fails.
     """
+    global _llm_calls
+
     def _fmt(t: dict) -> str:
         return "  " + "  ".join(f"{k}: {v}\n" for k, v in t.items())
 
@@ -648,6 +655,7 @@ def call_critic(
     )
 
     log.info("[CRITIC] Evaluating action: %s ...", action_taken.get("command"))
+    _llm_calls += 1
     raw    = call_ollama(MODEL_CRITIC, prompt)
     parsed = parse_json_response(raw)
 
@@ -821,7 +829,10 @@ def _fly_mission_to(
     return True
 
 
-def run_reflexion_mission() -> None:
+def run_reflexion_mission(scenario_id: str = "SC1", run_number: int = 1) -> None:
+    global _llm_calls
+    _llm_calls = 0
+    t_start = time.time()
     attempt_number = get_attempt_number()
     log.info("=" * 60)
     log.info("PARADIGM C: Reflexion Agent — Wildfire Boundary Mapping")
@@ -855,20 +866,26 @@ def run_reflexion_mission() -> None:
     history:         list[str]  = []
     outcome = "PARTIAL — mission incomplete"
 
+    action:      dict = {}
+    alpha_ok          = False
+    midpoint_ok       = False
+    bravo_ok          = False
+    interrupted       = False
+
     try:
         # --- PHASE 1: scripted navigation to WP_ALPHA ---
         log.info("=== PHASE 1: Flying to WP_ALPHA ===")
-        _fly_mission_to(master, uav,
-                        [(WP_ALPHA_LAT, WP_ALPHA_LON, CRUISE_ALT)],
-                        "WP_ALPHA")
+        alpha_ok = _fly_mission_to(master, uav,
+                                   [(WP_ALPHA_LAT, WP_ALPHA_LON, CRUISE_ALT)],
+                                   "WP_ALPHA")
 
         # --- PHASE 2: scripted navigation to MIDPOINT; anomaly pre-triggered ---
         log.info("=== PHASE 2: Flying to MIDPOINT — anomaly pre-triggered ===")
         uav.trigger_anomaly()
         log.info("[ANOMALY] Triggered before MIDPOINT approach")
-        _fly_mission_to(master, uav,
-                        [(MIDPOINT_LAT, MIDPOINT_LON, CRUISE_ALT)],
-                        "MIDPOINT")
+        midpoint_ok = _fly_mission_to(master, uav,
+                                      [(MIDPOINT_LAT, MIDPOINT_LON, CRUISE_ALT)],
+                                      "MIDPOINT")
 
         # --- PHASE 3: ONE LLM decision — how to respond to the anomaly ---
         log.info("=== PHASE 3: LLM DECISION — anomaly response ===")
@@ -900,9 +917,9 @@ def run_reflexion_mission() -> None:
             log.info("=== PHASE 4a: Investigating anomaly (~%.0fs loiter) then WP_BRAVO ===",
                      invest_s)
             time.sleep(invest_s)
-            _fly_mission_to(master, uav,
-                            [(WP_BRAVO_LAT, WP_BRAVO_LON, CRUISE_ALT)],
-                            "WP_BRAVO")
+            bravo_ok = _fly_mission_to(master, uav,
+                                       [(WP_BRAVO_LAT, WP_BRAVO_LON, CRUISE_ALT)],
+                                       "WP_BRAVO")
             outcome = "SUCCESS — anomaly investigated, WP_BRAVO reached"
         elif action.get("command") == "RTL":
             history.append("Actor chose to abort mission via RTL")
@@ -912,9 +929,9 @@ def run_reflexion_mission() -> None:
                 f"Actor chose {action.get('command')} — skipped investigation, flying to WP_BRAVO"
             )
             log.info("=== PHASE 4b: Skipped investigation — flying to WP_BRAVO ===")
-            _fly_mission_to(master, uav,
-                            [(WP_BRAVO_LAT, WP_BRAVO_LON, CRUISE_ALT)],
-                            "WP_BRAVO")
+            bravo_ok = _fly_mission_to(master, uav,
+                                       [(WP_BRAVO_LAT, WP_BRAVO_LON, CRUISE_ALT)],
+                                       "WP_BRAVO")
             outcome = "PARTIAL — anomaly skipped"
 
         telemetry_after = uav.get_state()
@@ -947,10 +964,39 @@ def run_reflexion_mission() -> None:
         log.info("=" * 60)
 
     except KeyboardInterrupt:
+        interrupted = True
         log.warning("Interrupted — commanding RTL for safety")
         set_mode(master, "RTL")
 
     finally:
+        waypoints = []
+        if alpha_ok:    waypoints.append("WP_ALPHA")
+        if midpoint_ok: waypoints.append("MIDPOINT")
+        if action.get("command") == "LOITER_TURNS": waypoints.append("ANOMALY")
+        if bravo_ok:    waypoints.append("WP_BRAVO")
+
+        anomaly_cmd = action.get("command", "")
+        if interrupted:                     run_outcome = "ABORTED_RTL"
+        elif outcome.startswith("SUCCESS"): run_outcome = "COMPLETED"
+        elif anomaly_cmd == "RTL":          run_outcome = "ABORTED_RTL"
+        else:                               run_outcome = "FAILED"
+
+        log_run(
+            paradigm="Reflexion",
+            model_primary=MODEL_PLANNER,
+            model_secondary=MODEL_CRITIC,
+            scenario_id=scenario_id,
+            run_number=run_number,
+            outcome=run_outcome,
+            failure_type="NONE" if run_outcome == "COMPLETED" else "REASONING",
+            waypoints_visited=waypoints,
+            anomaly_response=(anomaly_cmd if anomaly_cmd in ("LOITER_TURNS", "RTL") else "NONE"),
+            llm_calls=_llm_calls,
+            duration_seconds=time.time() - t_start,
+            telemetry_final=uav.get_state(),
+            notes=f"Attempt {attempt_number} — {outcome}",
+        )
+
         uav.stop()
         master.close()
 
