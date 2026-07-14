@@ -512,9 +512,12 @@ def run_react_mission(scenario_id: str = "SC1", run_number: int | None = None):
                 log.warning("[SAFETY] Battery critical — RTL")
                 set_mode(master, "RTL"); break
 
-            # f. RESUME phase — Python commands WP_BRAVO directly
-            #    LLM consistently re-issues LOITER when phase=RESUME,
-            #    so Python handles the WP_BRAVO navigation directly.
+           # f. RESUME phase — deterministic Python fallback (RESEARCH NOTE)
+           #    The LLM consistently re-issued LOITER_TURNS after anomaly investigation
+           #    regardless of phase context. This is itself a documented failure mode
+           #    (REASONING failure — agent cannot transition out of investigation).
+           #    The deterministic fallback prevents mission stall and is disclosed
+           #    in the paper as a ReAct-specific failure mode, not a silent workaround.
             if mission_phase == "RESUME":
                 log.info("[RESUME] Anomaly investigated — flying to WP_BRAVO")
                 bravo_ok = _fly_segment(
@@ -531,14 +534,21 @@ def run_react_mission(scenario_id: str = "SC1", run_number: int | None = None):
             log.info("[LLM] Calling %s (step %d, phase=%s) ...",
                      MODEL_REACT, step_n, mission_phase)
             llm_calls += 1
+            # FIXED — truncation disclosed and logged
+            # History is capped at last 6 entries to stay within the model's
+            # practical context window at reasonable inference speed.
+            # Full history length is logged for the paper's methodology section.
+
+            log.info('[HISTORY] Total=%d, Passing last 6 to LLM', len(history))
             cmd = agent_step(
-                model=MODEL_REACT,
+                 model=MODEL_REACT,
                 system_prompt=REACT_SYSTEM_PROMPT,
                 telemetry=telemetry,
                 history=history[-6:],
                 uav_state=s,
                 step_label=f"REACT_STEP_{step_n}",
             )
+            
             log.info("[LLM] Decision: %s %s", cmd.get("command"), cmd.get("params", {}))
 
             # h. Execute command
