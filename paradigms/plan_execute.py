@@ -2,8 +2,8 @@
 paradigms/plan_execute.py — Paradigm B: Plan-and-Execute
 
 TWO roles:
-  Planner  (llama3) — generates mission plan; replans on anomaly
-  Executor (llama3) — validates each step before execution
+  Planner  (qwen2.5:7b) — generates mission plan; replans on anomaly
+  Executor (mistral) — validates each step before execution
 
 NAVIGATION ARCHITECTURE (same fixes as ReAct):
   - Segment-by-segment AUTO navigation, single NAV_WAYPOINT per segment

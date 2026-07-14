@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import re
+import os
 
 import requests
 
@@ -27,28 +28,22 @@ MODEL_CRITIC   = "llama3"
 
 
 
-# Set to your ngrok URL when using Colab GPU, or keep localhost for local CPU.
-# Examples:
-#   Local:  _BASE_URL = "http://localhost:11434/api/generate"
-#   Colab:  _BASE_URL = "https://your-tunnel.ngrok-free.app/api/generate"
+# keep localhost for local CPU.
 
-_BASE_URL = "https://dispatched-gifts-twenty-tampa.trycloudflare.com/api/generate"
+_BASE_URL = os.environ.get(
+    'OLLAMA_URL',
+    'http://localhost:11434/api/generate'
+)
 _TIMEOUT  = 60    # seconds — GPU inference is fast; 60s is generous headroom
 
-# Headers required for ngrok free tier.
-# ngrok intercepts GET / with a browser warning page (returns 405).
-# This header skips the interstitial and lets POST requests through directly.
-_HEADERS = {
-    "Content-Type": "application/json",
-    "ngrok-skip-browser-warning": "true",
-}
+
 
 
 # ---------------------------------------------------------------------------
 # Core inference
 # ---------------------------------------------------------------------------
 
-def call_ollama(model_name: str, prompt: str, temperature: float = 0.2) -> str:
+def call_ollama(model_name: str, prompt: str, temperature: float = 0.0) -> str:
     """
     Send a prompt to Ollama (local or remote via ngrok) and return the response.
 

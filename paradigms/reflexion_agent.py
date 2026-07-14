@@ -1,9 +1,9 @@
 """
 paradigms/reflexion_agent.py — Paradigm C: Reflexion (Self-Correction)
 
-TWO roles, same model (qwen2.5:7b):
-  Actor  — proposes actions informed by MEMORY of past runs
-  Critic — evaluates each action and writes a structured reflection
+TWO roles, different models:
+  Actor (qwen2.5:7b) — proposes actions informed by MEMORY of past runs
+  Critic (llama3)— evaluates each action and writes a structured reflection
 
 Memory persists in reflexion_memory.txt between runs.
 Designed to be run 3 times — the agent improves each attempt.
