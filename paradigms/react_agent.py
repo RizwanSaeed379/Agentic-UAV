@@ -39,7 +39,7 @@ from shared.tools import (
 )
 from shared.prompts import REACT_SYSTEM_PROMPT
 from shared.agent_loop import agent_step
-from shared.logger import log_run
+from shared.logger import log_run, next_run_number
 from pymavlink import mavutil
 
 # ---------------------------------------------------------------------------
@@ -359,11 +359,15 @@ def execute_flight_command(master, uav, command_dict):
 # ---------------------------------------------------------------------------
 # Main ReAct mission — continuous reasoning loop
 # ---------------------------------------------------------------------------
-def run_react_mission(scenario_id: str = "SC1", run_number: int = 1):
+def run_react_mission(scenario_id: str = "SC1", run_number: int | None = None):
     t_start = time.time()
+    # run_number auto-increments from the runs already logged for this scenario
+    if run_number is None:
+        run_number = next_run_number("ReAct", scenario_id)
     log.info("=" * 60)
     log.info("PARADIGM A: ReAct Agent — Wildfire Boundary Mapping")
     log.info("Model  : %s", MODEL_REACT)
+    log.info("Run    : %s run %d", scenario_id, run_number)
     log.info("Route  : Home → WP_ALPHA → MIDPOINT → ANOMALY → WP_BRAVO → RTL")
     log.info("Loop   : LLM called every %ds — continuous reasoning", _LOOP_INTERVAL)
     log.info("Log    : %s", _LOG_FILE)
@@ -610,9 +614,16 @@ def run_react_mission(scenario_id: str = "SC1", run_number: int = 1):
 
 
 if __name__ == "__main__":
+    import argparse
+    ap = argparse.ArgumentParser(description="Paradigm A: ReAct Agent")
+    ap.add_argument("--scenario", default="SC1", help="scenario id: SC1..SC6")
+    ap.add_argument("--run", type=int, default=None,
+                    help="run number (default: auto-increment from the log)")
+    args = ap.parse_args()
+
     print("=== PARADIGM A: ReAct Agent ===")
     print(f"Model  : {MODEL_REACT}")
     print("Mission: Wildfire boundary mapping — Rawalpindi SITL")
     print("Loop   : LLM called every 5s — continuous reasoning")
     input("Press Enter to begin...")
-    run_react_mission()
+    run_react_mission(scenario_id=args.scenario, run_number=args.run)

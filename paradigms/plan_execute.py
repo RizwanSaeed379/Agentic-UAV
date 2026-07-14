@@ -33,7 +33,7 @@ from shared.tools import (
     execute_tool, TOOL_REGISTRY,
 )
 from shared.prompts import PLAN_EXECUTE_SYSTEM_PROMPT
-from shared.logger import log_run
+from shared.logger import log_run, next_run_number
 from pymavlink import mavutil
 
 # ---------------------------------------------------------------------------
@@ -552,12 +552,17 @@ def execute_flight_command(master, cmd_dict: dict, uav: UAVState) -> bool:
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
-def run_plan_execute_mission(scenario_id: str = "SC1", run_number: int = 1) -> None:
+def run_plan_execute_mission(scenario_id: str = "SC1",
+                             run_number: int | None = None) -> None:
     global _llm_calls
     _llm_calls = 0
     t_start = time.time()
+    # run_number auto-increments from the runs already logged for this scenario
+    if run_number is None:
+        run_number = next_run_number("PlanExecute", scenario_id)
     log.info("="*60)
     log.info("PARADIGM B: Plan-and-Execute — Wildfire Boundary Mapping")
+    log.info("Run     : %s run %d", scenario_id, run_number)
     log.info("Planner : %s", MODEL_PLANNER)
     log.info("Executor: %s", MODEL_EXECUTOR)
     log.info("Route   : Home → WP_ALPHA → MIDPOINT → ANOMALY → WP_BRAVO → RTL")
@@ -1023,7 +1028,14 @@ def run_plan_execute_mission(scenario_id: str = "SC1", run_number: int = 1) -> N
 
 
 if __name__ == "__main__":
+    import argparse
+    ap = argparse.ArgumentParser(description="Paradigm B: Plan-and-Execute")
+    ap.add_argument("--scenario", default="SC1", help="scenario id: SC1..SC6")
+    ap.add_argument("--run", type=int, default=None,
+                    help="run number (default: auto-increment from the log)")
+    args = ap.parse_args()
+
     print("=== PARADIGM B: Plan-and-Execute ===")
     print(f"Planner: {MODEL_PLANNER} | Executor: {MODEL_EXECUTOR}")
     input("Press Enter to begin...")
-    run_plan_execute_mission()
+    run_plan_execute_mission(scenario_id=args.scenario, run_number=args.run)

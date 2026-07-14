@@ -30,7 +30,7 @@ from shared.tools import (
     execute_tool, TOOL_REGISTRY,
 )
 from shared.prompts import REFLEXION_SYSTEM_PROMPT
-from shared.logger import log_run
+from shared.logger import log_run, next_run_number
 from pymavlink import mavutil
 import threading
 import time
@@ -829,14 +829,19 @@ def _fly_mission_to(
     return True
 
 
-def run_reflexion_mission(scenario_id: str = "SC1", run_number: int = 1) -> None:
+def run_reflexion_mission(scenario_id: str = "SC1",
+                          run_number: int | None = None) -> None:
     global _llm_calls
     _llm_calls = 0
     t_start = time.time()
     attempt_number = get_attempt_number()
+    # run_number auto-increments from the runs already logged for this scenario
+    if run_number is None:
+        run_number = next_run_number("Reflexion", scenario_id)
     log.info("=" * 60)
     log.info("PARADIGM C: Reflexion Agent — Wildfire Boundary Mapping")
     log.info("Actor/Critic: %s / %s", MODEL_PLANNER, MODEL_CRITIC)
+    log.info("Run    : %s run %d", scenario_id, run_number)
     log.info("=== ATTEMPT %d ===", attempt_number)
     log.info("Log    : %s", _LOG_FILE)
     log.info("Memory : %s", MEMORY_FILE)
@@ -1006,6 +1011,13 @@ def run_reflexion_mission(scenario_id: str = "SC1", run_number: int = 1) -> None
 # ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
+    import argparse
+    ap = argparse.ArgumentParser(description="Paradigm C: Reflexion Agent")
+    ap.add_argument("--scenario", default="SC1", help="scenario id: SC1..SC6")
+    ap.add_argument("--run", type=int, default=None,
+                    help="run number (default: auto-increment from the log)")
+    args = ap.parse_args()
+
     print("=== PARADIGM C: Reflexion Agent ===")
     print("Actor: qwen2.5:7b | Critic: qwen2.5:7b")
     print("Mission: Wildfire boundary mapping - Rawalpindi SITL")
@@ -1016,4 +1028,4 @@ if __name__ == "__main__":
         print(f"Loading {attempt - 1} past reflection(s) from memory...")
     print("Ensure Mission Planner SITL is running before starting.")
     input("Press Enter to begin...")
-    run_reflexion_mission()
+    run_reflexion_mission(scenario_id=args.scenario, run_number=args.run)

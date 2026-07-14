@@ -138,6 +138,16 @@ def _memory_status() -> str:
 # Main
 # ---------------------------------------------------------------------------
 
+def ask_scenario() -> str:
+    """Ask which scenario this run belongs to. The run number is derived
+    automatically from the runs already recorded in uav_test_results.jsonl."""
+    while True:
+        sc = input("Scenario id [SC1-SC6, Enter for SC1]: ").strip().upper() or "SC1"
+        if sc in {"SC1", "SC2", "SC3", "SC4", "SC5", "SC6"}:
+            return sc
+        print("Invalid scenario. Enter SC1 through SC6.")
+
+
 def main() -> None:
     print_banner()
 
@@ -157,18 +167,21 @@ def main() -> None:
         choice = input("\nSelect paradigm [A/B/C/Q]: ").strip().upper()
 
         if choice == "A":
+            scenario = ask_scenario()
             if not print_preflight_checklist():
                 continue
             from paradigms.react_agent import run_react_mission
-            run_react_mission()
+            run_react_mission(scenario_id=scenario)
 
         elif choice == "B":
+            scenario = ask_scenario()
             if not print_preflight_checklist():
                 continue
             from paradigms.plan_execute import run_plan_execute_mission
-            run_plan_execute_mission()
+            run_plan_execute_mission(scenario_id=scenario)
 
         elif choice == "C":
+            scenario = ask_scenario()
             if not print_preflight_checklist():
                 continue
             from paradigms.reflexion_agent import (
@@ -180,7 +193,7 @@ def main() -> None:
             print(f"\nReflexion — Attempt #{attempt}")
             if attempt > 1:
                 print(f"Loading {attempt - 1} past reflection(s) from memory")
-            run_reflexion_mission()
+            run_reflexion_mission(scenario_id=scenario)
             print(f"\nAttempt #{attempt} complete.")
             print("Run again (select C) to attempt with accumulated memory.")
 

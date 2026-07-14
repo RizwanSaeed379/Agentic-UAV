@@ -6,6 +6,26 @@ LOG_FILE = os.path.join(
     'uav_test_results.jsonl'
 )
  
+def next_run_number(paradigm: str, scenario_id: str) -> int:
+    """Return 1 + the number of runs already logged for this paradigm+scenario."""
+    if not os.path.exists(LOG_FILE):
+        return 1
+    count = 0
+    with open(LOG_FILE, 'r', encoding='utf-8') as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                entry = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if (entry.get('paradigm') == paradigm
+                    and entry.get('scenario_id') == scenario_id):
+                count += 1
+    return count + 1
+
+
 def log_run(
     paradigm:        str,   # 'ReAct' | 'PlanExecute' | 'Reflexion'
     model_primary:   str,   # primary model name
