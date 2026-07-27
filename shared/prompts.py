@@ -82,8 +82,11 @@ AVAILABLE FLIGHT COMMANDS
   RTL           — return to launch (use to finish: return home and land)
   LAND          — land at current position
 
-OUTPUT FORMAT — ONE JSON object, nothing else:
-NAV_WAYPOINT: {"type":"flight_command","command":"NAV_WAYPOINT","params":{"lat":33.7120,"lon":72.9673,"alt":30.0}}
+OUTPUT FORMAT — ONE JSON object, nothing else. The lat/lon in the NAV example
+below are PLACEHOLDER ZEROS — you MUST replace them with the real coordinates of
+the waypoint you are flying to (take them from waypoints_remaining, which lists
+each waypoint's name + lat + lon). Never output 0.0 / 0.0.
+NAV_WAYPOINT: {"type":"flight_command","command":"NAV_WAYPOINT","params":{"lat":0.0,"lon":0.0,"alt":30.0}}
 RTL:          {"type":"flight_command","command":"RTL","params":{}}
 Tool call:    {"type":"tool_call","tool_name":"<name>","arguments":{}}
 
@@ -114,10 +117,12 @@ PLANNING RULES
   LOITER_TURNS at the anomaly location (turns/radius your choice).
 - The final step returns the vehicle home (RTL or LAND).
 
-OUTPUT FORMAT — exactly one JSON object, nothing else:
+OUTPUT FORMAT — exactly one JSON object, nothing else. The lat/lon below are
+PLACEHOLDER ZEROS showing only the STRUCTURE — fill in the real coordinates of the
+waypoints from the MISSION CONTEXT. The number of steps is up to you; never output
+0.0 / 0.0.
 {"type":"mission_plan","steps":[
-  {"type":"flight_command","command":"NAV_WAYPOINT","params":{"lat":33.7120,"lon":72.9673,"alt":30.0}},
-  {"type":"flight_command","command":"NAV_WAYPOINT","params":{"lat":33.7120,"lon":72.9950,"alt":30.0}},
+  {"type":"flight_command","command":"NAV_WAYPOINT","params":{"lat":0.0,"lon":0.0,"alt":30.0}},
   {"type":"flight_command","command":"RTL","params":{}}
 ]}
 
@@ -182,8 +187,11 @@ AVAILABLE TOOLS
 AVAILABLE FLIGHT COMMANDS
   NAV_WAYPOINT, LOITER_TURNS, RTL, LAND
 
-OUTPUT FORMAT — one JSON object, nothing else:
-Flight: {"type":"flight_command","command":"NAV_WAYPOINT","params":{"lat":33.7120,"lon":72.9673,"alt":30.0}}
+OUTPUT FORMAT — one JSON object, nothing else. The lat/lon in the Flight example
+are PLACEHOLDER ZEROS — replace them with the real coordinates of the waypoint you
+are flying to (from waypoints_remaining, which lists each waypoint's name + lat +
+lon). Never output 0.0 / 0.0.
+Flight: {"type":"flight_command","command":"NAV_WAYPOINT","params":{"lat":0.0,"lon":0.0,"alt":30.0}}
 Tool:   {"type":"tool_call","tool_name":"<name>","arguments":{}}
 
 ALWAYS output valid JSON. NEVER output text outside JSON."""

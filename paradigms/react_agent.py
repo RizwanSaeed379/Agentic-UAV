@@ -44,6 +44,7 @@ from shared.agent_loop import agent_step
 from shared.logger import log_run
 from shared.scenarios import (
     get_scenario, resolve_anomaly, record_arrival, compress, score_run,
+    NAMED_WAYPOINTS,
 )
 from pymavlink import mavutil
 
@@ -500,7 +501,9 @@ def run_react_mission(scenario_id: str = "SC1", run_number: int = 1,
                 **s,
                 "mission_goal":        cfg["goal"],
                 "waypoints_visited":   visited,
-                "waypoints_remaining": [w for w in expected_order if w not in visited],
+                "waypoints_remaining": [
+                    {"name": w, "lat": NAMED_WAYPOINTS[w][0], "lon": NAMED_WAYPOINTS[w][1]}
+                    for w in expected_order if w not in visited],
                 "steps_used":          step_n,
                 "steps_remaining":     step_cap - step_n,
                 "anomaly_active":      anomaly_fired,
