@@ -41,7 +41,12 @@ if not log.handlers:
 # ---------------------------------------------------------------------------
 
 _MAX_TOOL_CALLS = 5
-_SAFE_DEFAULT   = {"type": "flight_command", "command": "RTL", "params": {}}
+# fallback=True marks this as a safe-default RTL issued because the LLM never
+# produced a valid flight command (parse failure / exhausted retries), NOT a
+# decision the agent made. Scoring uses this to distinguish a parse failure from
+# a genuine RTL abort.
+_SAFE_DEFAULT   = {"type": "flight_command", "command": "RTL", "params": {},
+                   "fallback": True}
 
 
 # ---------------------------------------------------------------------------

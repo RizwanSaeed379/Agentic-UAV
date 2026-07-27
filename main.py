@@ -69,6 +69,26 @@ def select_scenario() -> str:
     return choice
 
 
+def select_anomaly_override():
+    """
+    Ask whether to inject the anomaly this run (whether trigger_anomaly fires).
+
+    Returns:
+      None  -> use the scenario default (SC1 default is OFF)
+      True  -> force the disturbance ON
+      False -> force it OFF
+    """
+    ans = input(
+        "Inject anomaly this run? "
+        "[Enter = scenario default / y = on / n = off]: "
+    ).strip().lower()
+    if ans == "y":
+        return True
+    if ans == "n":
+        return False
+    return None
+
+
 def print_preflight_checklist() -> bool:
     """Print the pre-flight checklist and ask for user confirmation."""
     print(
@@ -176,20 +196,23 @@ def main() -> None:
             if not print_preflight_checklist():
                 continue
             scenario = select_scenario()
+            anomaly  = select_anomaly_override()
             from paradigms.react_agent import run_react_mission
-            run_react_mission(scenario_id=scenario)
+            run_react_mission(scenario_id=scenario, anomaly_override=anomaly)
 
         elif choice == "B":
             if not print_preflight_checklist():
                 continue
             scenario = select_scenario()
+            anomaly  = select_anomaly_override()
             from paradigms.plan_execute import run_plan_execute_mission
-            run_plan_execute_mission(scenario_id=scenario)
+            run_plan_execute_mission(scenario_id=scenario, anomaly_override=anomaly)
 
         elif choice == "C":
             if not print_preflight_checklist():
                 continue
             scenario = select_scenario()
+            anomaly  = select_anomaly_override()
             from paradigms.reflexion_agent import (
                 run_reflexion_mission,
                 get_attempt_number,
@@ -199,7 +222,7 @@ def main() -> None:
             print(f"\nReflexion — Attempt #{attempt}")
             if attempt > 1:
                 print(f"Loading {attempt - 1} past reflection(s) from memory")
-            run_reflexion_mission(scenario_id=scenario)
+            run_reflexion_mission(scenario_id=scenario, anomaly_override=anomaly)
             print(f"\nAttempt #{attempt} complete.")
             print("Run again (select C) to attempt with accumulated memory.")
 

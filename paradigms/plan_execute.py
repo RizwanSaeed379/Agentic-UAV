@@ -33,8 +33,13 @@ from shared.tools import (
     MIDPOINT_LAT, MIDPOINT_LON, CRUISE_ALT, GEOFENCE,
     execute_tool, TOOL_REGISTRY,
 )
-from shared.prompts import PLAN_EXECUTE_SYSTEM_PROMPT
+from shared.prompts import (
+    plan_execute_planner_prompt, plan_execute_executor_prompt,
+)
 from shared.logger import log_run
+from shared.scenarios import (
+    get_scenario, resolve_anomaly, record_arrival, compress, score_run,
+)
 from pymavlink import mavutil
 
 # ---------------------------------------------------------------------------
@@ -390,22 +395,22 @@ def _fly_loiter(master, uav, lat, lon, alt, turns, radius):
 # ---------------------------------------------------------------------------
 # Planner
 # ---------------------------------------------------------------------------
-def call_planner(mission_context: str, past_steps: list) -> list:
+def call_planner(system_prompt: str, mission_context: str, past_steps: list) -> list:
     completed_summary = (
         "\n".join(f"  {i+1}. {s.get('command','?')} {s.get('params',{})}"
                   for i, s in enumerate(past_steps))
         if past_steps else "  (none — initial plan)"
     )
+    # The system_prompt already carries the goal, waypoint coordinates, geofence
+    # and cruise altitude (goal-based prompt). We no longer spoon-feed the exact
+    # steps — the planner decides the plan that achieves the goal itself.
     prompt = (
-        f"{PLAN_EXECUTE_SYSTEM_PROMPT}\n\n"
-        f"=== MISSION CONTEXT ===\n{mission_context}\n\n"
-        f"=== COMPLETED STEPS ===\n{completed_summary}\n\n"
-        f"Generate remaining steps to complete the mission.\n"
-        f"Coordinates: WP_ALPHA({WP_ALPHA_LAT},{WP_ALPHA_LON}) "
-        f"ANOMALY({ANOMALY_LAT},{ANOMALY_LON}) "
-        f"WP_BRAVO({WP_BRAVO_LAT},{WP_BRAVO_LON}) ALT={CRUISE_ALT}m\n\n"
-        f"IMPORTANT: NAV_WAYPOINT steps will be flown in AUTO mode by Python.\n"
-        f"Use NAV_WAYPOINT for navigation, LOITER_TURNS for anomaly investigation.\n"
+        f"{system_prompt}\n\n"
+        f"=== SITUATION ===\n{mission_context}\n\n"
+        f"=== STEPS ALREADY PLANNED/DONE ===\n{completed_summary}\n\n"
+        f"Generate the remaining flight_command steps to ACHIEVE THE GOAL.\n"
+        f"NAV_WAYPOINT steps are flown in AUTO mode by Python; use LOITER_TURNS "
+        f"only to investigate a disturbance. End by returning home (RTL or LAND).\n"
         f'Output JSON only: {{"type":"mission_plan","steps":[...]}}'
     )
     for attempt in range(1, _PLANNER_RETRIES + 2):
@@ -428,25 +433,9 @@ def call_planner(mission_context: str, past_steps: list) -> list:
 # ---------------------------------------------------------------------------
 # Executor
 # ---------------------------------------------------------------------------
-_EXECUTOR_SYSTEM = (
-    "You are the EXECUTOR for an autonomous UAV mission.\n"
-    "You receive ONE planned step and current telemetry.\n"
-    "You must output the step to execute — confirmed, modified, or aborted.\n\n"
-    "STRICT RULES:\n"
-    "1. The 'command' field value MUST match the planned step command exactly.\n"
-    "   You CANNOT change NAV_WAYPOINT to LOITER_TURNS or vice versa.\n"
-    "   You can only modify the 'params' (lat/lon/alt/turns/radius).\n"
-    "2. battery_pct < 15: change command to RTL, params to {}.\n"
-    "3. If params look correct: confirm unchanged.\n"
-    "4. If params need adjustment (e.g. wrong alt): modify params only.\n\n"
-    "Output EXACTLY ONE JSON object, nothing else:\n"
-    "Confirm:  {\"type\":\"flight_command\",\"command\":\"NAV_WAYPOINT\","
-    "\"params\":{\"lat\":33.712,\"lon\":72.9673,\"alt\":30.0},\"confirmed\":true}\n"
-    "Modify:   {\"type\":\"flight_command\",\"command\":\"NAV_WAYPOINT\","
-    "\"params\":{\"lat\":33.712,\"lon\":72.9812,\"alt\":30.0},\"modified\":true}\n"
-    "Abort:    {\"type\":\"flight_command\",\"command\":\"RTL\",\"params\":{},\"abort\":true}\n\n"
-    "NEVER change the command type. NEVER add explanation outside JSON."
-)
+# The executor's system prompt now comes from shared/prompts.py
+# (plan_execute_executor_prompt) — a validation role, not the old "you CANNOT
+# change the command" rubber stamp. Passed into call_executor at call time.
 
 _EXECUTOR_RETRY = (
     "\n\nYour previous response was invalid. Output ONLY a JSON object.\n"
@@ -455,15 +444,15 @@ _EXECUTOR_RETRY = (
     "\"params\":{\"lat\":33.712,\"lon\":72.9673,\"alt\":30.0},\"confirmed\":true}"
 )
 
-def call_executor(step: dict, telemetry: dict) -> dict:
-    # Python battery override — never trust LLM for safety
+def call_executor(system_prompt: str, step: dict, telemetry: dict) -> dict:
+    # Python battery override — safety floor, never trust the LLM for this.
     bat = telemetry.get("battery_pct", 100)
     if 0 <= bat < 15:
         log.warning("[EXECUTOR] Battery critical (%d%%) — RTL override", bat)
         return {"type":"flight_command","command":"RTL","params":{},"abort":True}
 
     telem_str = "\n".join(f"  {k}: {v}" for k,v in telemetry.items())
-    base = (f"{_EXECUTOR_SYSTEM}\n\n"
+    base = (f"{system_prompt}\n\n"
             f"PLANNED STEP:\n{json.dumps(step, indent=2)}\n\n"
             f"TELEMETRY:\n{telem_str}\n\nOutput JSON now.")
     log.info("EXECUTOR validating: %s %s", step.get("command"), step.get("params",{}))
@@ -547,15 +536,33 @@ def execute_flight_command(master, cmd_dict: dict, uav: UAVState) -> bool:
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
-def run_plan_execute_mission(scenario_id: str = "SC1", run_number: int = 1) -> None:
+def run_plan_execute_mission(scenario_id: str = "SC1", run_number: int = 1,
+                             anomaly_override=None) -> None:
     _run_start = time.time()
-    llm_calls  = 0   # best-effort: counts planner + executor invocations
+    llm_calls  = 0   # counts planner + executor invocations (paper metric)
     anomaly_response = "NONE"
+
+    # Scenario config drives disturbance + scoring. The ROUTE is the plan the
+    # LLM generates — no longer spoon-fed or reverted.
+    cfg             = get_scenario(scenario_id)
+    anomaly_enabled = resolve_anomaly(cfg, anomaly_override)
+    planner_prompt  = plan_execute_planner_prompt(cfg)
+    executor_prompt = plan_execute_executor_prompt(cfg)
+    step_cap        = cfg["step_cap"]
+    score_wps       = cfg["score_waypoints"]
+    expected_order  = cfg["expected_order"]
+    arrivals        = []
+    terminal_cmd    = ""
+    timed_out       = False
+    safety_note     = ""
+
     log.info("="*60)
-    log.info("PARADIGM B: Plan-and-Execute — Wildfire Boundary Mapping")
+    log.info("PARADIGM B: Plan-and-Execute — Autonomous (LLM plans the route)")
     log.info("Planner : %s", MODEL_PLANNER)
     log.info("Executor: %s", MODEL_EXECUTOR)
-    log.info("Route   : Home → WP_ALPHA → MIDPOINT → ANOMALY → WP_BRAVO → RTL")
+    log.info("Scenario: %s — %s", scenario_id, cfg["description"])
+    log.info("Goal    : %s", cfg["goal"])
+    log.info("Anomaly : %s", "ENABLED" if anomaly_enabled else "DISABLED")
     log.info("Log     : %s", _LOG_FILE)
     log.info("="*60)
 
@@ -576,19 +583,16 @@ def run_plan_execute_mission(scenario_id: str = "SC1", run_number: int = 1) -> N
     log.info("="*60)
     log.info("Calling PLANNER before takeoff (ground = free battery) ...")
     log.info("="*60)
+    # Situation only — NOT a script. The planner decides the steps that achieve
+    # the goal. Python has already scripted takeoff + the climb to WP_ALPHA
+    # (below), so the plan should cover the mission from WP_ALPHA onward.
     mission_context = (
-        f"Wildfire boundary mapping. The UAV has just reached WP_ALPHA "
-        f"({WP_ALPHA_LAT},{WP_ALPHA_LON}) and is now airborne at cruise altitude. "
-        f"Plan the REMAINING steps only — do NOT include HOME or WP_ALPHA. "
-        f"Required steps in order: "
-        f"1. NAV_WAYPOINT to MIDPOINT ({MIDPOINT_LAT},{MIDPOINT_LON},{CRUISE_ALT}m). "
-        f"2. LOITER_TURNS at ANOMALY ({ANOMALY_LAT},{ANOMALY_LON},{CRUISE_ALT}m) turns=2 radius=80 — ONCE only. "
-        f"3. NAV_WAYPOINT to WP_BRAVO ({WP_BRAVO_LAT},{WP_BRAVO_LON},{CRUISE_ALT}m). "
-        f"4. RTL. "
-        f"Output exactly these 4 steps and nothing else."
+        f"The UAV is airborne at cruise altitude and has reached WP_ALPHA "
+        f"({WP_ALPHA_LAT},{WP_ALPHA_LON}). Plan the remaining flight to achieve "
+        f"the goal from here, and finish by returning home."
     )
     llm_calls += 1
-    current_plan = call_planner(mission_context, past_steps=[])
+    current_plan = call_planner(planner_prompt, mission_context, past_steps=[])
 
     # -----------------------------------------------------------------------
     # STEP 2: Executor validates each step on the ground.
@@ -600,38 +604,27 @@ def run_plan_execute_mission(scenario_id: str = "SC1", run_number: int = 1) -> N
     validated_plan = []
     for i, step in enumerate(current_plan):
         step_cmd = step.get("command", "")
-        # RTL and LAND are trivially safe — skip executor for these only
         if step_cmd in ("RTL", "LAND"):
             validated = {**step, "confirmed": True}
             log.info("  [%d] %s — trivially safe, auto-confirmed", i, step_cmd)
         else:
-            # ALL other steps (NAV_WAYPOINT, LOITER_TURNS) go through executor
+            # Executor validates against live telemetry. We TRUST its output —
+            # the old revert-to-plan forcing (type revert, coord-drift revert,
+            # loiter-param revert) is REMOVED so the agent genuinely owns the
+            # plan. The only remaining guard is a crash-safety altitude floor,
+            # logged as an override, not a silent revert.
             telemetry = uav.get_state()
             llm_calls += 1
-            validated = call_executor(step, telemetry)
-            # Type safety: RTL override always accepted, other type changes reverted
-            exec_cmd = validated.get("command", "")
-            if exec_cmd != step_cmd and exec_cmd != "RTL":
-                log.warning("  [%d] Executor changed type %s->%s — reverting", i, step_cmd, exec_cmd)
-                validated = {**step, "confirmed": True}
-            # Param safety: reject coord drift, alt=0, or any LOITER param change
-            orig_p   = step.get("params", {})
+            validated = call_executor(executor_prompt, step, telemetry)
+            orig_alt = float(step.get("params", {}).get("alt", CRUISE_ALT))
             new_p    = validated.get("params", {})
-            orig_lat = float(orig_p.get("lat", 0))
-            orig_lon = float(orig_p.get("lon", 0))
-            orig_alt = float(orig_p.get("alt", CRUISE_ALT))
-            new_lat  = float(new_p.get("lat", orig_lat))
-            new_lon  = float(new_p.get("lon", orig_lon))
             new_alt  = float(new_p.get("alt", orig_alt))
-            coord_drift    = orig_lat and (abs(new_lat-orig_lat) > 0.002 or abs(new_lon-orig_lon) > 0.002)
-            alt_danger     = new_alt <= 5.0 and orig_alt > 5.0
-            loiter_changed = (step_cmd == "LOITER_TURNS" and new_p != orig_p)
-            if coord_drift or alt_danger or loiter_changed:
-                log.warning("  [%d] Param change rejected (%.4f,%.4f,%.0fm)->(%.4f,%.4f,%.0fm) — reverting",
-                            i, orig_lat, orig_lon, orig_alt, new_lat, new_lon, new_alt)
-                validated = {**step, "confirmed": True}
-            else:
-                log.info("  [%d] %s confirmed by executor", i, step_cmd)
+            if new_alt <= 5.0 and orig_alt > 5.0:
+                log.warning("  [%d] Executor altitude %.0fm unsafe — clamping to %.0fm [SAFETY]",
+                            i, new_alt, orig_alt)
+                validated = {**validated, "params": {**new_p, "alt": orig_alt}}
+            log.info("  [%d] %s -> executor: %s %s", i, step_cmd,
+                     validated.get("command"), validated.get("params", {}))
         validated_plan.append(validated)
 
     # -----------------------------------------------------------------------
@@ -706,6 +699,16 @@ def run_plan_execute_mission(scenario_id: str = "SC1", run_number: int = 1) -> N
                 p1=0, p2=0, p3=0, p4=0,
                 x=0, y=0, z=0))
             seq += 1
+        elif cmd == "LAND":
+            full_mission.append(dict(
+                seq=seq, frame=frame,
+                command=mavutil.mavlink.MAV_CMD_NAV_LAND,
+                current=0, autocontinue=1,
+                p1=0, p2=0, p3=0, p4=0,
+                x=float(p.get("lat", HOME_LAT)),
+                y=float(p.get("lon", HOME_LON)),
+                z=0))
+            seq += 1
 
     log.info("Full mission: %d items", len(full_mission))
     for item in full_mission:
@@ -749,12 +752,19 @@ def run_plan_execute_mission(scenario_id: str = "SC1", run_number: int = 1) -> N
     anomaly_fired = False
     replan_count  = 0
 
-    # Waypoint sequence numbers in the full mission
+    # Waypoint sequence numbers in the full mission (used by the anomaly/replan
+    # path, which is gated OFF unless the scenario enables the disturbance).
     SEQ_WP_ALPHA  = 2
     SEQ_MIDPOINT  = 3
     SEQ_LOITER    = 4
     SEQ_BRAVO     = 5
     SEQ_RTL       = 6
+
+    # Terminal detection for a VARIABLE-length LLM plan (not the old fixed
+    # 4-step mission): the plan's last uploaded item is the terminal.
+    terminal_seq  = full_mission[-1]["seq"]
+    plan_terminal = next((st["command"] for st in reversed(validated_plan)
+                          if st.get("command") in ("RTL", "LAND")), "")
 
     log.info("="*60)
     log.info("MONITORING flight — ArduPlane handles navigation ...")
@@ -774,6 +784,9 @@ def run_plan_execute_mission(scenario_id: str = "SC1", run_number: int = 1) -> N
             if clat == 0.0:
                 time.sleep(_POLL_S); continue
 
+            # Ground-truth arrival tracking for scoring (observation only)
+            record_arrival(clat, clon, score_wps, arrivals)
+
             # Track waypoint completions by sequence number
             if not wp_alpha_ok and wp > SEQ_WP_ALPHA:
                 d = _hav(clat, clon, WP_ALPHA_LAT, WP_ALPHA_LON)
@@ -792,7 +805,7 @@ def run_plan_execute_mission(scenario_id: str = "SC1", run_number: int = 1) -> N
             # This matches the manual: "re-invoke the planner to rewrite
             # the remaining flight plan" when anomaly is detected.
             # ---------------------------------------------------------------
-            if not anomaly_fired and wp >= SEQ_LOITER:
+            if anomaly_enabled and not anomaly_fired and wp >= SEQ_LOITER:
                 anomaly_fired = True
                 uav.trigger_anomaly()
                 d = _hav(clat, clon, MIDPOINT_LAT, MIDPOINT_LON)
@@ -812,23 +825,20 @@ def run_plan_execute_mission(scenario_id: str = "SC1", run_number: int = 1) -> N
                     if wp_alpha_ok: completed.append("WP_ALPHA visited")
                     if midpoint_ok: completed.append("MIDPOINT reached")
                     replan_context = (
-                        f"MID-FLIGHT REPLAN. Anomaly detected at mid-transit. "
+                        f"MID-FLIGHT REPLAN. A disturbance was detected at mid-transit. "
                         f"Current position: ({clat:.4f},{clon:.4f}) alt={alt:.0f}m bat={bat}%. "
                         f"Completed so far: {', '.join(completed) if completed else 'none'}. "
-                        f"A thermal anomaly is active at ANOMALY({ANOMALY_LAT},{ANOMALY_LON},{CRUISE_ALT}m) "
-                        f"— 150m north of mid-transit — simultaneously wind has reduced groundspeed by 40%. "
-                        f"Replan the REMAINING steps only: "
-                        f"1. LOITER_TURNS at ANOMALY ({ANOMALY_LAT},{ANOMALY_LON},{CRUISE_ALT}m) turns=2 radius=80. "
-                        f"2. NAV_WAYPOINT to WP_BRAVO ({WP_BRAVO_LAT},{WP_BRAVO_LON},{CRUISE_ALT}m). "
-                        f"3. RTL. "
-                        f"Output exactly these 3 steps."
+                        f"A thermal anomaly is active near ANOMALY({ANOMALY_LAT},{ANOMALY_LON}) "
+                        f"and wind has reduced groundspeed ~40%. "
+                        f"Re-plan the remaining flight from here to achieve the goal, "
+                        f"then return home."
                     )
 
                     log.info("[REPLAN] Calling Planner with anomaly context ...")
                     # Pass [] for past_steps — completed steps are described
                     # in replan_context string already, not as step dicts.
                     llm_calls += 1
-                    new_plan = call_planner(replan_context, past_steps=[])
+                    new_plan = call_planner(planner_prompt, replan_context, past_steps=[])
 
                     if new_plan:
                         log.info("[REPLAN] Planner returned %d new steps:", len(new_plan))
@@ -846,7 +856,7 @@ def run_plan_execute_mission(scenario_id: str = "SC1", run_number: int = 1) -> N
                             else:
                                 cur_telem = uav.get_state()
                                 llm_calls += 1
-                                vstep = call_executor(step, cur_telem)
+                                vstep = call_executor(executor_prompt, step, cur_telem)
                                 exec_cmd = vstep.get("command", "")
                                 if exec_cmd != step_cmd and exec_cmd != "RTL":
                                     log.warning("  [R%d] Executor changed type %s->%s — reverting", j, step_cmd, exec_cmd)
@@ -978,38 +988,52 @@ def run_plan_execute_mission(scenario_id: str = "SC1", run_number: int = 1) -> N
             log.info("[MONITOR] seq=%d mode=%s bat=%d%% alt=%.0fm",
                      wp, mode, bat, alt)
 
-            # Battery safety
+            # Battery safety — logged override
             if 0 <= bat < 15:
-                log.warning("[SAFETY] Battery critical — RTL")
-                set_mode(master, "RTL"); break
+                log.warning("[SAFETY] Battery critical — forced RTL override")
+                set_mode(master, "RTL")
+                terminal_cmd = "RTL"; safety_note = "SAFETY_RTL"
+                break
 
-            # Mission done when RTL or mode switches after seq_rtl
-            if wp >= SEQ_RTL or mode == "RTL":
-                log.info("[OK] Mission complete — RTL active")
+            # Mission complete when the plan's terminal item is reached
+            if wp >= terminal_seq or mode in ("RTL", "LAND"):
+                record_arrival(clat, clon, score_wps, arrivals)
+                terminal_cmd = (plan_terminal if plan_terminal in ("RTL", "LAND")
+                                else ("LAND" if mode == "LAND" else "RTL"))
+                log.info("[OK] Mission complete — terminal=%s reached=%s",
+                         terminal_cmd, compress(arrivals))
                 break
 
             time.sleep(_POLL_S)
+        else:
+            timed_out = True
+            log.warning("[TIMEOUT] Monitor loop timed out before completion")
 
     except KeyboardInterrupt:
         log.warning("Interrupted — RTL")
         set_mode(master, "RTL")
 
     finally:
+        reached = compress(arrivals)
+        # Map a monitor-loop timeout onto the shared scorer's TIMEOUT path.
+        score_step_n = step_cap + 1 if (timed_out and terminal_cmd == "") else 0
+        outcome, failure_type, note = score_run(
+            arrivals, expected_order, score_step_n, step_cap, terminal_cmd)
+        notes = (f"plan_steps={len(validated_plan)}; replans={replan_count}; "
+                 f"terminal={terminal_cmd or 'NONE'}; {note}")
+        if safety_note:
+            notes += f"; {safety_note}"
+
         log.info("="*60)
-        log.info("MISSION SUMMARY:")
-        log.info("  WP_ALPHA visited    : %s", wp_alpha_ok)
-        log.info("  MIDPOINT reached    : %s", midpoint_ok)
-        log.info("  Anomaly investigated: %s", loiter_ok)
-        log.info("  WP_BRAVO reached    : %s", bravo_ok)
-        log.info("  Replans             : %d", replan_count)
+        log.info("MISSION SUMMARY (scenario %s):", scenario_id)
+        log.info("  Waypoints reached : %s", reached)
+        log.info("  Expected order    : %s", expected_order)
+        log.info("  Terminal command  : %s", terminal_cmd or "NONE")
+        log.info("  Anomaly enabled   : %s (fired=%s)", anomaly_enabled, anomaly_fired)
+        log.info("  LLM calls         : %d", llm_calls)
+        log.info("  OUTCOME           : %s (%s)", outcome, failure_type)
         log.info("="*60)
 
-        # Structured run log — best-effort field derivation from local state.
-        visited = [w for w, ok in (
-            ("WP_ALPHA", wp_alpha_ok), ("MIDPOINT", midpoint_ok),
-            ("ANOMALY", loiter_ok), ("WP_BRAVO", bravo_ok)) if ok]
-        outcome = "COMPLETED" if bravo_ok else (
-            "ABORTED_RTL" if anomaly_fired else "FAILED")
         log_run(
             paradigm="PlanExecute",
             model_primary=MODEL_PLANNER,
@@ -1017,13 +1041,13 @@ def run_plan_execute_mission(scenario_id: str = "SC1", run_number: int = 1) -> N
             scenario_id=scenario_id,
             run_number=run_number,
             outcome=outcome,
-            failure_type="NONE" if outcome == "COMPLETED" else "",
-            waypoints_visited=visited,
+            failure_type=failure_type,
+            waypoints_visited=reached,
             anomaly_response=anomaly_response,
             llm_calls=llm_calls,
             duration_seconds=time.time() - _run_start,
             telemetry_final=uav.get_state(),
-            notes=f"replans={replan_count}",
+            notes=notes,
         )
 
         uav.stop()

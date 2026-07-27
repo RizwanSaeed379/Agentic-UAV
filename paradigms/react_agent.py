@@ -39,9 +39,12 @@ from shared.tools import (
     WP_BRAVO_LAT, WP_BRAVO_LON, ANOMALY_LAT, ANOMALY_LON,
     MIDPOINT_LAT, MIDPOINT_LON, CRUISE_ALT,
 )
-from shared.prompts import REACT_SYSTEM_PROMPT
+from shared.prompts import react_system_prompt
 from shared.agent_loop import agent_step
 from shared.logger import log_run
+from shared.scenarios import (
+    get_scenario, resolve_anomaly, record_arrival, compress, score_run,
+)
 from pymavlink import mavutil
 
 # ---------------------------------------------------------------------------
@@ -94,6 +97,12 @@ def _hav(la1, lo1, la2, lo2):
     a = (math.sin(math.radians(la2 - la1) / 2) ** 2
          + math.cos(p1) * math.cos(p2) * math.sin(math.radians(lo2 - lo1) / 2) ** 2)
     return R * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+
+
+def _agl(s):
+    """Approximate altitude AGL. SITL reports ASL; Rawalpindi ground is ~584m."""
+    alt = s.get("alt", 0) or 0
+    return alt - 584 if alt > 100 else alt
 
 # ---------------------------------------------------------------------------
 # Connection
@@ -353,14 +362,27 @@ def execute_flight_command(master, uav, command_dict):
 # ---------------------------------------------------------------------------
 # Main ReAct mission — continuous reasoning loop
 # ---------------------------------------------------------------------------
-def run_react_mission(scenario_id: str = "SC1", run_number: int = 1):
+def run_react_mission(scenario_id: str = "SC1", run_number: int = 1,
+                      anomaly_override=None):
     _run_start = time.time()
+
+    # Scenario config drives the disturbance, step cap, and scoring. The ROUTE is
+    # owned by the LLM (goal-based prompt); nothing here flies waypoints for it.
+    cfg             = get_scenario(scenario_id)
+    anomaly_enabled = resolve_anomaly(cfg, anomaly_override)
+    system_prompt   = react_system_prompt(cfg)
+    step_cap        = cfg["step_cap"]
+    score_wps       = cfg["score_waypoints"]
+    expected_order  = cfg["expected_order"]
+
     log.info("=" * 60)
-    log.info("PARADIGM A: ReAct Agent — Wildfire Boundary Mapping")
-    log.info("Model  : %s", MODEL_REACT)
-    log.info("Route  : Home → WP_ALPHA → MIDPOINT → ANOMALY → WP_BRAVO → RTL")
-    log.info("Loop   : LLM called every %ds — continuous reasoning", _LOOP_INTERVAL)
-    log.info("Log    : %s", _LOG_FILE)
+    log.info("PARADIGM A: ReAct Agent — Autonomous (LLM owns the route)")
+    log.info("Model    : %s", MODEL_REACT)
+    log.info("Scenario : %s — %s", scenario_id, cfg["description"])
+    log.info("Goal     : %s", cfg["goal"])
+    log.info("Anomaly  : %s", "ENABLED" if anomaly_enabled else "DISABLED")
+    log.info("Step cap : %d", step_cap)
+    log.info("Log      : %s", _LOG_FILE)
     log.info("=" * 60)
 
     master = _connect()
@@ -374,10 +396,12 @@ def run_react_mission(scenario_id: str = "SC1", run_number: int = 1):
     time.sleep(1)
     _wait_gps(uav)
 
-    # Upload takeoff mission — HOME + TAKEOFF + WP_ALPHA
-    # On reaching WP_ALPHA the plane holds it; the ReAct loop then takes over.
+    # Upload takeoff-ONLY mission — HOME + TAKEOFF to cruise altitude.
+    # Getting airborne is vehicle bring-up, not a navigation decision, so it stays
+    # scripted. The scripted WP_ALPHA leg was REMOVED: the LLM now owns the route,
+    # so it must decide to fly to WP_ALPHA itself once airborne.
     frame = mavutil.mavlink.MAV_FRAME_GLOBAL_RELATIVE_ALT
-    log.info("Uploading takeoff + WP_ALPHA mission ...")
+    log.info("Uploading takeoff-only mission (HOME + TAKEOFF to %dm) ...", CRUISE_ALT)
     _send_items(master, [
         dict(seq=0, frame=0,
              command=mavutil.mavlink.MAV_CMD_NAV_WAYPOINT,
@@ -387,206 +411,171 @@ def run_react_mission(scenario_id: str = "SC1", run_number: int = 1):
              command=mavutil.mavlink.MAV_CMD_NAV_TAKEOFF,
              current=1, autocontinue=1, p1=15, p2=0, p3=0, p4=0,
              x=HOME_LAT, y=HOME_LON, z=CRUISE_ALT),
-        dict(seq=2, frame=frame,
-             command=mavutil.mavlink.MAV_CMD_NAV_WAYPOINT,
-             current=0, autocontinue=1, p1=0, p2=200, p3=0, p4=0,
-             x=WP_ALPHA_LAT, y=WP_ALPHA_LON, z=CRUISE_ALT),
     ])
     set_mode(master, "AUTO")
     _arm(master, uav)
-    log.info("[OK] Takeoff started — waiting for WP_ALPHA before ReAct loop")
+    log.info("[OK] Takeoff started — waiting for airborne, then LLM owns the route")
 
-    # Wait for WP_ALPHA before starting the reasoning loop
+    # Wait until airborne at ~cruise altitude (vehicle readiness, NOT a route
+    # decision). Then LOITER-hold so the plane circles at altitude while the LLM
+    # decides its first destination.
     log.info("=" * 60)
-    log.info("PHASE 1: Waiting for AUTO flight to WP_ALPHA ...")
+    log.info("Waiting for airborne (AGL >= %.0fm) ...", 0.8 * CRUISE_ALT)
     log.info("=" * 60)
-    wp_alpha_ok = False
+    airborne = False
     t0 = time.time()
     while time.time() - t0 < _NAV_TIMEOUT:
-        s    = uav.get_state()
-        clat = s.get("lat", 0.0)
-        bat  = s.get("battery_pct", 100)
-        wp   = s.get("wp_seq", 0)
-        if clat:
-            dist_alpha = _hav(clat, s.get("lon", 0), WP_ALPHA_LAT, WP_ALPHA_LON)
-            agl = s.get("alt", 0) - 584 if s.get("alt", 0) > 100 else s.get("alt", 0)
-            log.info("[PHASE 1] wp=%d mode=%s bat=%d%% AGL~%.0fm dist_alpha=%.0fm",
-                     wp, s.get("mode", ""), bat, agl, dist_alpha)
-            if wp >= 2 and dist_alpha <= _WP_REACH_DIST:
-                log.info("[OK] WP_ALPHA reached (wp=%d dist=%.0fm)", wp, dist_alpha)
-                wp_alpha_ok = True
-                break
-            if 0 <= bat < 15:
-                log.warning("[PHASE 1] Battery critical — RTL")
-                set_mode(master, "RTL"); return
+        s   = uav.get_state()
+        agl = _agl(s)
+        bat = s.get("battery_pct", 100)
+        log.info("[TAKEOFF] AGL~%.0fm mode=%s bat=%d%%", agl, s.get("mode", ""), bat)
+        if agl >= 0.8 * CRUISE_ALT:
+            log.info("[OK] Airborne at %.0fm — handing navigation to the LLM", agl)
+            airborne = True
+            break
+        if 0 <= bat < 15:
+            log.warning("[TAKEOFF] Battery critical — RTL")
+            set_mode(master, "RTL"); return
         time.sleep(_POLL_S)
 
+    # Hold at cruise altitude while the LLM chooses the first waypoint.
+    set_mode(master, "LOITER")
+
     # -----------------------------------------------------------------------
-    # ReAct continuous reasoning loop
-    # LLM is called on EVERY iteration with current telemetry + mission_phase
+    # Autonomous ReAct loop — the LLM owns the route.
+    # Each step: read telemetry -> record arrivals (observation) -> safety floor
+    # -> inject progress -> call LLM -> execute -> re-check arrival -> repeat.
+    # The scripted phase machine and the deterministic RESUME leg were REMOVED
+    # so the agent, not Python, decides the sequence and when to finish.
     # -----------------------------------------------------------------------
     log.info("=" * 60)
-    log.info("Starting ReAct reasoning loop — LLM called every %ds", _LOOP_INTERVAL)
+    log.info("Starting autonomous ReAct loop — LLM decides every action")
     log.info("=" * 60)
 
-    history       = [f"WP_ALPHA {'reached' if wp_alpha_ok else 'missed'}"]
-    step_n        = 0
-    anomaly_fired = False
-    mission_phase = "TRANSIT"   # TRANSIT → ANOMALY_INVESTIGATION → RESUME → COMPLETE
-
-    # Best-effort run-log tracking (see shared/logger.py)
+    history          = ["Airborne over HOME at cruise altitude. Mission not started."]
+    arrivals         = []      # ordered ground-truth waypoint arrivals (scoring)
+    step_n           = 0
+    anomaly_fired    = False
+    terminal_cmd     = ""
+    used_fallback    = False
+    safety_note      = ""
     llm_calls        = 0
-    anomaly_response = "NONE"   # set to the agent's anomaly action when taken
-
-    wp_alpha_ok = wp_alpha_ok
-    mid_ok      = False
-    anomaly_ok  = False
-    bravo_ok    = False
+    anomaly_response = "NONE"
 
     try:
         while True:
-            time.sleep(_LOOP_INTERVAL)
             step_n += 1
+            if step_n > step_cap:
+                log.warning("[TIMEOUT] Step cap %d exceeded", step_cap)
+                break
 
-            # a. Get current telemetry
+            # a. Telemetry + ground-truth arrival tracking (observation only)
             s    = uav.get_state()
             clat = s.get("lat", 0.0)
             clon = s.get("lon", 0.0)
             bat  = s.get("battery_pct", 100)
             mode = s.get("mode", "")
-            wp   = s.get("wp_seq", 0)
+            record_arrival(clat, clon, score_wps, arrivals)
 
-            # b. Phase transitions
-            if mission_phase == "TRANSIT" and anomaly_fired:
-                mission_phase = "ANOMALY_INVESTIGATION"
-                log.info("Phase: TRANSIT → ANOMALY_INVESTIGATION")
-
-            if mission_phase == "ANOMALY_INVESTIGATION" and any(
-                "LOITER" in h or "ANOMALY INVESTIGATED" in h for h in history
-            ):
-                mission_phase = "RESUME"
-                log.info("Phase: ANOMALY_INVESTIGATION → RESUME")
-
-            # c. Check MIDPOINT proximity → trigger anomaly once
-            if clat and not anomaly_fired:
-                dist_mid = _hav(clat, clon, MIDPOINT_LAT, MIDPOINT_LON)
-                passed = (dist_mid <= 400 or wp >= 3 or clon > 72.975)
-                if passed:
-                    log.info("MIDPOINT reached (%.0fm) — triggering dual anomaly!", dist_mid)
-                    uav.trigger_anomaly()
-                    anomaly_fired = True
-                    mid_ok = True
-                    history.append(
-                        "MIDPOINT reached. Dual anomaly triggered: thermal spike at "
-                        f"ANOMALY({ANOMALY_LAT},{ANOMALY_LON}) 150m north + "
-                        "wind reduced groundspeed 40%."
-                    )
-
-            # d. Enrich telemetry with mission context for LLM
-            telemetry = {
-                **s,
-                "mission_phase":      mission_phase,
-                "anomaly_triggered":  anomaly_fired,
-                "loiter_completed":   mission_phase in ("RESUME", "COMPLETE"),
-                "dist_to_midpoint_m": round(_hav(clat, clon, MIDPOINT_LAT, MIDPOINT_LON), 1) if clat else -1,
-                "dist_to_wp_bravo_m": round(_hav(clat, clon, WP_BRAVO_LAT, WP_BRAVO_LON), 1) if clat else -1,
-                "dist_to_anomaly_m":  round(_hav(clat, clon, ANOMALY_LAT, ANOMALY_LON), 1) if clat else -1,
-            }
-
-            log.info("--- Step %d | phase=%-22s | mode=%s | bat=%d%% | wp=%d ---",
-                     step_n, mission_phase, mode, bat, wp)
-
-            # e. Battery safety check
+            # b. Safety floor — logged override, NOT a reasoning action
             if 0 <= bat < 15:
-                log.warning("[SAFETY] Battery critical — RTL")
-                set_mode(master, "RTL"); break
-
-            # f. RESUME phase — deterministic Python fallback (RESEARCH NOTE)
-            #    The LLM consistently re-issued LOITER_TURNS after anomaly
-            #    investigation regardless of phase context. This is itself a
-            #    documented failure mode (REASONING failure — agent cannot
-            #    transition out of investigation). The deterministic fallback
-            #    prevents mission stall and is disclosed in the paper as a
-            #    ReAct-specific failure mode, not a silent workaround.
-            if mission_phase == "RESUME":
-                log.info("[RESUME] Anomaly investigated — flying to WP_BRAVO")
-                bravo_ok = _fly_segment(
-                    master, uav, WP_BRAVO_LAT, WP_BRAVO_LON, CRUISE_ALT, "WP_BRAVO")
-                history.append(
-                    f"WP_BRAVO {'reached' if bravo_ok else 'missed'} after anomaly investigation")
-                mission_phase = "COMPLETE"
-                log.info("Phase: RESUME → COMPLETE")
+                log.warning("[SAFETY] Battery critical (%d%%) — forced RTL override", bat)
                 set_mode(master, "RTL")
-                log.info("[CMD] RTL — mission complete")
+                terminal_cmd = "RTL"; safety_note = "SAFETY_RTL"
                 break
 
-            # g. Call LLM — EVERY iteration (TRANSIT and ANOMALY_INVESTIGATION)
-            log.info("[LLM] Calling %s (step %d, phase=%s) ...",
-                     MODEL_REACT, step_n, mission_phase)
-            # History is capped at the last 6 entries to stay within the model's
-            # practical context window at reasonable inference speed. Earlier
-            # entries are not passed to the LLM; full length is logged here so
-            # the truncation is a documented design choice, not a silent limit.
-            log.info("[HISTORY] Total=%d, passing last 6 to LLM", len(history))
+            # c. Disturbance injection — scenario-gated (OFF for SC1)
+            if anomaly_enabled and not anomaly_fired and clat:
+                if _hav(clat, clon, MIDPOINT_LAT, MIDPOINT_LON) <= 400 or clon > 72.975:
+                    log.info("[ANOMALY] Injecting disturbance (scenario %s)", scenario_id)
+                    uav.trigger_anomaly()
+                    anomaly_fired = True
+                    history.append(
+                        "Disturbance active: thermal anomaly at "
+                        f"ANOMALY({ANOMALY_LAT},{ANOMALY_LON}) + wind -40% groundspeed.")
+
+            # d. Progress fields so the LLM can sequence the route itself
+            visited = compress(arrivals)
+            telemetry = {
+                **s,
+                "mission_goal":        cfg["goal"],
+                "waypoints_visited":   visited,
+                "waypoints_remaining": [w for w in expected_order if w not in visited],
+                "steps_used":          step_n,
+                "steps_remaining":     step_cap - step_n,
+                "anomaly_active":      anomaly_fired,
+                "dist_to_wp_alpha_m":  round(_hav(clat, clon, WP_ALPHA_LAT, WP_ALPHA_LON), 1) if clat else -1,
+                "dist_to_wp_bravo_m":  round(_hav(clat, clon, WP_BRAVO_LAT, WP_BRAVO_LON), 1) if clat else -1,
+                "dist_to_home_m":      round(_hav(clat, clon, HOME_LAT, HOME_LON), 1) if clat else -1,
+            }
+            if anomaly_enabled:
+                telemetry["dist_to_anomaly_m"] = (
+                    round(_hav(clat, clon, ANOMALY_LAT, ANOMALY_LON), 1) if clat else -1)
+
+            log.info("--- Step %d/%d | visited=%s | mode=%s | bat=%d%% ---",
+                     step_n, step_cap, visited, mode, bat)
+
+            # e. Call the LLM — it chooses the next action (route is its decision)
             llm_calls += 1
             cmd = agent_step(
                 model=MODEL_REACT,
-                system_prompt=REACT_SYSTEM_PROMPT,
+                system_prompt=system_prompt,
                 telemetry=telemetry,
                 history=history[-6:],
                 uav_state=s,
                 step_label=f"REACT_STEP_{step_n}",
             )
-            log.info("[LLM] Decision: %s %s", cmd.get("command"), cmd.get("params", {}))
+            command = cmd.get("command", "?")
+            if cmd.get("fallback"):
+                used_fallback = True
+            log.info("[LLM] Decision: %s %s%s", command, cmd.get("params", {}),
+                     " [FALLBACK]" if cmd.get("fallback") else "")
 
-            # h. Execute command
+            if command == "LOITER_TURNS":
+                anomaly_response = "LOITER_TURNS"
+
+            # f. Execute (blocking — flies the segment / sets the mode)
             execute_flight_command(master, uav, cmd)
 
-            # Record loiter investigation
-            if cmd.get("command") == "LOITER_TURNS":
-                anomaly_ok = True
-                anomaly_response = "LOITER_TURNS"
-                history.append(
-                    "ANOMALY INVESTIGATED: LOITER_TURNS completed at anomaly site. "
-                    "Resume mission to WP_BRAVO.")
-                log.info("Loiter investigation recorded in history")
+            # g. Re-check arrival after the flight completes
+            s2 = uav.get_state()
+            record_arrival(s2.get("lat", 0.0), s2.get("lon", 0.0), score_wps, arrivals)
 
-            # i. Record step in history
             history.append(
-                f"Step {step_n}: {cmd.get('command')} "
-                f"{cmd.get('params', {})} | phase={mission_phase}")
-            log.info("Step %d complete | command=%s | phase=%s | history=%d",
-                     step_n, cmd.get("command", "?"), mission_phase, len(history))
+                f"Step {step_n}: {command} {cmd.get('params', {})} "
+                f"| visited={compress(arrivals)}")
 
-            # j. Terminal conditions
-            if cmd.get("command") in ("RTL", "LAND"):
-                log.info("Terminal command %s — ending ReAct loop", cmd.get("command"))
-                break
-
-            if mission_phase == "COMPLETE":
-                log.info("Mission complete — ending ReAct loop")
+            # h. Terminal — the AGENT declares the mission over
+            if command in ("RTL", "LAND"):
+                terminal_cmd = command
+                log.info("Terminal command %s — agent ended the mission", command)
                 break
 
     except KeyboardInterrupt:
         log.warning("Interrupted — RTL")
         set_mode(master, "RTL")
+        terminal_cmd = "RTL"; safety_note = "INTERRUPT"
 
     finally:
+        reached = compress(arrivals)
+        outcome, failure_type, note = score_run(
+            arrivals, expected_order, step_n, step_cap, terminal_cmd,
+            fallback=used_fallback)
+        notes = f"steps={step_n}/{step_cap}; terminal={terminal_cmd or 'NONE'}; {note}"
+        if safety_note:
+            notes += f"; {safety_note}"
+
         log.info("=" * 60)
-        log.info("MISSION SUMMARY:")
-        log.info("  WP_ALPHA visited    : %s", wp_alpha_ok)
-        log.info("  MIDPOINT reached    : %s", mid_ok)
-        log.info("  Anomaly investigated: %s", anomaly_ok)
-        log.info("  WP_BRAVO reached    : %s", bravo_ok)
-        log.info("  ReAct steps taken   : %d", step_n)
+        log.info("MISSION SUMMARY (scenario %s):", scenario_id)
+        log.info("  Waypoints reached : %s", reached)
+        log.info("  Expected order    : %s", expected_order)
+        log.info("  Terminal command  : %s", terminal_cmd or "NONE")
+        log.info("  Steps taken       : %d / %d", step_n, step_cap)
+        log.info("  Anomaly enabled   : %s (fired=%s)", anomaly_enabled, anomaly_fired)
+        log.info("  LLM calls         : %d", llm_calls)
+        log.info("  OUTCOME           : %s (%s)", outcome, failure_type)
         log.info("=" * 60)
 
-        # Structured run log — best-effort field derivation from local state.
-        visited = [w for w, ok in (
-            ("WP_ALPHA", wp_alpha_ok), ("MIDPOINT", mid_ok),
-            ("ANOMALY", anomaly_ok), ("WP_BRAVO", bravo_ok)) if ok]
-        outcome = "COMPLETED" if bravo_ok else (
-            "ABORTED_RTL" if mission_phase != "COMPLETE" and anomaly_fired else "FAILED")
         log_run(
             paradigm="ReAct",
             model_primary=MODEL_REACT,
@@ -594,13 +583,13 @@ def run_react_mission(scenario_id: str = "SC1", run_number: int = 1):
             scenario_id=scenario_id,
             run_number=run_number,
             outcome=outcome,
-            failure_type="NONE" if outcome == "COMPLETED" else "",
-            waypoints_visited=visited,
+            failure_type=failure_type,
+            waypoints_visited=reached,
             anomaly_response=anomaly_response,
             llm_calls=llm_calls,
             duration_seconds=time.time() - _run_start,
             telemetry_final=uav.get_state(),
-            notes=f"steps={step_n}",
+            notes=notes,
         )
 
         uav.stop()
