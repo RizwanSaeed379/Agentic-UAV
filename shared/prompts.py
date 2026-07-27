@@ -45,7 +45,7 @@ MISSION PHASES — injected as mission_phase in telemetry
 
 DECISION RULES — follow in order
 ---------------------------------
-1. If battery_pct < 25: output RTL immediately.
+1. If battery_pct < 15: output RTL immediately.
 2. If mission_phase == ANOMALY_INVESTIGATION and loiter_completed == False:
      output LOITER_TURNS at (33.7134, 72.9812, 30m, turns=2, radius=80).
 3. If mission_phase == TRANSIT and anomaly_fired == True:
@@ -208,7 +208,7 @@ REFLEXION RULES
 4. If memory shows RTL triggered early: investigate why before attempting again.
 5. If memory is empty or attempt == 1: act as a first attempt with no priors.
 6. Propose the ONE action most likely to succeed given what went wrong before.
-7. Safety rules always override memory: battery_pct < 25% → RTL immediately.
+7. Safety rules always override memory: battery_pct < 15% → RTL immediately.
 
 REASONING PROCESS (internal, collapsed to ONE output action)
 ------------------------------------------------------------

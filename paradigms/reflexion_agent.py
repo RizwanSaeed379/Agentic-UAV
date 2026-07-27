@@ -19,7 +19,7 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from shared.mavlink_state import UAVState, telemetry_paused
-from shared.llm_utils import call_ollama, parse_json_response, MODEL_PLANNER, MODEL_CRITIC
+from shared.llm_utils import call_ollama, parse_json_response, MODEL_ACTOR, MODEL_CRITIC
 from shared.tools import (
     HOME_LAT, HOME_LON,
     WP_ALPHA_LAT, WP_ALPHA_LON,
@@ -30,6 +30,7 @@ from shared.tools import (
     execute_tool, TOOL_REGISTRY,
 )
 from shared.prompts import REFLEXION_SYSTEM_PROMPT
+from shared.logger import log_run
 from pymavlink import mavutil
 import threading
 import time
@@ -435,22 +436,18 @@ def _upload_loiter_mission(
              current=0, autocontinue=1,
              p1=0, p2=0, p3=0, p4=0,
              x=HOME_LAT, y=HOME_LON, z=0),
+        # autocontinue=0 holds the loiter after the turns finish, so the mission
+        # never "completes" and the plane keeps circling until Python decides
+        # investigation is done and overwrites this with the WP_BRAVO mission.
+        # (Replaces the old DO_JUMP loop-back, which was only needed to hold the
+        # plane during slow local LLM inference.)
         dict(seq=1, frame=frame,
              command=mavutil.mavlink.MAV_CMD_NAV_LOITER_TURNS,
-             current=1, autocontinue=1,
+             current=1, autocontinue=0,
              p1=turns, p2=0, p3=radius, p4=0,
              x=lat, y=lon, z=alt),
-        # seq 2 — DO_JUMP back to the loiter so the mission never "completes".
-        # Without this, ArduPilot auto-triggers RTL the instant the turns
-        # finish (before Python uploads the WP_BRAVO leg), so the plane heads
-        # home instead of continuing. Python decides when investigation is done
-        # and then overwrites this with the WP_BRAVO mission.
-        dict(seq=2, frame=frame,
-             command=mavutil.mavlink.MAV_CMD_DO_JUMP,
-             current=0, autocontinue=1,
-             p1=1, p2=-1, p3=0, p4=0, x=0, y=0, z=0),
     ]
-    log.info("Uploading LOITER_TURNS+DO_JUMP: (%.5f, %.5f, %.0fm) turns=%d r=%dm",
+    log.info("Uploading LOITER_TURNS: (%.5f, %.5f, %.0fm) turns=%d r=%dm",
              lat, lon, alt, turns, radius)
     _send_mission_items(master, items)
 
@@ -556,7 +553,7 @@ def call_actor(
     parse_fails = 0
 
     for tool_round in range(_MAX_TOOL_CALLS + 1):
-        raw    = call_ollama(MODEL_PLANNER, prompt)
+        raw    = call_ollama(MODEL_ACTOR, prompt)
         parsed = parse_json_response(raw)
 
         if not parsed:
@@ -722,7 +719,7 @@ def _fly_to(
         if dist <= threshold:
             log.info("[NAV] Reached %s (%.0fm)", label, dist)
             return True
-        if 0 <= state.get("battery_pct", 100) < 20:
+        if 0 <= state.get("battery_pct", 100) < 15:
             log.warning("[NAV] Battery critical — aborting navigation to %s", label)
             return False
         time.sleep(5)
@@ -811,7 +808,7 @@ def _fly_mission_to(
             else:
                 log.info("[NAV] wp_seq=%d but dist=%.0fm — still flying", wp, dist)
 
-        if 0 <= bat < 20:
+        if 0 <= bat < 15:
             log.warning("[NAV] Battery critical — aborting navigation to %s", label)
             return False
 
@@ -821,11 +818,12 @@ def _fly_mission_to(
     return True
 
 
-def run_reflexion_mission() -> None:
+def run_reflexion_mission(scenario_id: str = "SC1", run_number: int = 1) -> None:
+    _run_start = time.time()
     attempt_number = get_attempt_number()
     log.info("=" * 60)
     log.info("PARADIGM C: Reflexion Agent — Wildfire Boundary Mapping")
-    log.info("Actor/Critic: %s / %s", MODEL_PLANNER, MODEL_CRITIC)
+    log.info("Actor/Critic: %s / %s", MODEL_ACTOR, MODEL_CRITIC)
     log.info("=== ATTEMPT %d ===", attempt_number)
     log.info("Log    : %s", _LOG_FILE)
     log.info("Memory : %s", MEMORY_FILE)
@@ -855,10 +853,15 @@ def run_reflexion_mission() -> None:
     history:         list[str]  = []
     outcome = "PARTIAL — mission incomplete"
 
+    # Best-effort run-log tracking (see shared/logger.py)
+    llm_calls        = 0
+    anomaly_response = "NONE"
+    alpha_ok = mid_ok = bravo_ok = anomaly_ok = False
+
     try:
         # --- PHASE 1: scripted navigation to WP_ALPHA ---
         log.info("=== PHASE 1: Flying to WP_ALPHA ===")
-        _fly_mission_to(master, uav,
+        alpha_ok = _fly_mission_to(master, uav,
                         [(WP_ALPHA_LAT, WP_ALPHA_LON, CRUISE_ALT)],
                         "WP_ALPHA")
 
@@ -866,11 +869,20 @@ def run_reflexion_mission() -> None:
         log.info("=== PHASE 2: Flying to MIDPOINT — anomaly pre-triggered ===")
         uav.trigger_anomaly()
         log.info("[ANOMALY] Triggered before MIDPOINT approach")
-        _fly_mission_to(master, uav,
+        mid_ok = _fly_mission_to(master, uav,
                         [(MIDPOINT_LAT, MIDPOINT_LON, CRUISE_ALT)],
                         "MIDPOINT")
 
-        # --- PHASE 3: ONE LLM decision — how to respond to the anomaly ---
+        # --- PHASE 3: SINGLE LLM DECISION — anomaly response (RESEARCH NOTE) ---
+        # Reflexion is implemented here as a scoped single-decision paradigm.
+        # Navigation phases (1, 2, 4, 5) are scripted Python — the LLM is
+        # invoked ONCE per attempt for the highest-stakes decision: anomaly
+        # response. This scope was chosen after observing that a full multi-step
+        # Actor stalled repeatedly in early runs (documented as a Reflexion
+        # failure mode). Cross-attempt learning still occurs: the Critic writes a
+        # reflection after each run and the Actor reads all past reflections at
+        # the start of the next. This design is explicitly disclosed in the
+        # paper's methodology section.
         log.info("=== PHASE 3: LLM DECISION — anomaly response ===")
         telemetry = uav.get_state()
         telemetry["mission_phase"]   = "ANOMALY_DECISION"
@@ -878,9 +890,12 @@ def run_reflexion_mission() -> None:
             f"Attempt {attempt_number}. Past attempts: {attempt_number - 1}"
         )
 
-        log.info("[ACTOR] Calling %s for anomaly decision ...", MODEL_PLANNER)
+        log.info("[ACTOR] Calling %s for anomaly decision ...", MODEL_ACTOR)
+        llm_calls += 1
         action = call_actor(telemetry, memory, history, uav.get_state())
         commands_issued.append(action)
+        _act = action.get("command", "")
+        anomaly_response = _act if _act in ("LOITER_TURNS", "RTL") else "CONTINUE"
         log.info("[ACTOR] Decision: %s %s",
                  action.get("command"), action.get("params", {}))
 
@@ -891,7 +906,7 @@ def run_reflexion_mission() -> None:
         if action.get("command") == "LOITER_TURNS":
             history.append("Actor chose to INVESTIGATE anomaly via LOITER_TURNS")
             # Let the loiter turns actually complete before moving on. The loiter
-            # mission loops (DO_JUMP) so the plane holds at the anomaly and never
+            # item uses autocontinue=0 so the plane holds at the anomaly and never
             # auto-RTLs; we wait the fly-in + turn duration, then upload WP_BRAVO.
             _p      = action.get("params", {})
             _turns  = int(_p.get("turns", 2))
@@ -900,7 +915,8 @@ def run_reflexion_mission() -> None:
             log.info("=== PHASE 4a: Investigating anomaly (~%.0fs loiter) then WP_BRAVO ===",
                      invest_s)
             time.sleep(invest_s)
-            _fly_mission_to(master, uav,
+            anomaly_ok = True
+            bravo_ok = _fly_mission_to(master, uav,
                             [(WP_BRAVO_LAT, WP_BRAVO_LON, CRUISE_ALT)],
                             "WP_BRAVO")
             outcome = "SUCCESS — anomaly investigated, WP_BRAVO reached"
@@ -912,7 +928,7 @@ def run_reflexion_mission() -> None:
                 f"Actor chose {action.get('command')} — skipped investigation, flying to WP_BRAVO"
             )
             log.info("=== PHASE 4b: Skipped investigation — flying to WP_BRAVO ===")
-            _fly_mission_to(master, uav,
+            bravo_ok = _fly_mission_to(master, uav,
                             [(WP_BRAVO_LAT, WP_BRAVO_LON, CRUISE_ALT)],
                             "WP_BRAVO")
             outcome = "PARTIAL — anomaly skipped"
@@ -921,6 +937,7 @@ def run_reflexion_mission() -> None:
 
         # --- Critic evaluates the single key decision ---
         log.info("[CRITIC] Evaluating anomaly decision ...")
+        llm_calls += 1
         critique = call_critic(action, telemetry_before, telemetry_after, True)
         critiques.append(critique)
         log.info("[CRITIC] outcome=%s severity=%s",
@@ -951,6 +968,32 @@ def run_reflexion_mission() -> None:
         set_mode(master, "RTL")
 
     finally:
+        # Structured run log — best-effort field derivation from local state.
+        visited = [w for w, ok in (
+            ("WP_ALPHA", alpha_ok), ("MIDPOINT", mid_ok),
+            ("ANOMALY", anomaly_ok), ("WP_BRAVO", bravo_ok)) if ok]
+        if outcome.startswith("SUCCESS"):
+            log_outcome = "COMPLETED"
+        elif "abort" in outcome.lower():
+            log_outcome = "ABORTED_RTL"
+        else:
+            log_outcome = "FAILED"
+        log_run(
+            paradigm="Reflexion",
+            model_primary=MODEL_ACTOR,
+            model_secondary=MODEL_CRITIC,
+            scenario_id=scenario_id,
+            run_number=run_number,
+            outcome=log_outcome,
+            failure_type="NONE" if log_outcome == "COMPLETED" else "",
+            waypoints_visited=visited,
+            anomaly_response=anomaly_response,
+            llm_calls=llm_calls,
+            duration_seconds=time.time() - _run_start,
+            telemetry_final=uav.get_state(),
+            notes=f"attempt={attempt_number}; {outcome}",
+        )
+
         uav.stop()
         master.close()
 

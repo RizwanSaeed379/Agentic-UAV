@@ -20,6 +20,7 @@ MODEL_REACT    = "llama3"
 MODEL_PLANNER  = "qwen2.5:7b"
 MODEL_EXECUTOR = "mistral"
 MODEL_CRITIC   = "llama3"
+MODEL_ACTOR    = "qwen2.5:7b"
 
 # ---------------------------------------------------------------------------
 # Config
@@ -30,13 +31,17 @@ MODEL_CRITIC   = "llama3"
 
 # keep localhost for local CPU.
 
-_BASE_URL = os.environ.get(
-    'OLLAMA_URL',
-    'http://localhost:11434/api/generate'
-)
+# _BASE_URL = os.environ.get(
+#     'OLLAMA_URL',
+#     'http://localhost:11434/api/generate'
+# )
+_BASE_URL = "https://treasure-calculations-ate-interest.trycloudflare.com/api/generate"
 _TIMEOUT  = 60    # seconds — GPU inference is fast; 60s is generous headroom
 
-
+_HEADERS = {
+    "Content-Type": "application/json",
+    # "ngrok-skip-browser-warning": "true",  <-- REMOVE
+}
 
 
 # ---------------------------------------------------------------------------
@@ -50,7 +55,7 @@ def call_ollama(model_name: str, prompt: str, temperature: float = 0.0) -> str:
     Args:
         model_name:  Ollama model tag (e.g. "llama3").
         prompt:      The full prompt string.
-        temperature: Sampling temperature (default 0.2 for deterministic output).
+        temperature: Sampling temperature (default 0.0 for deterministic output).
 
     Returns:
         The model's response as a plain string, or an error message string.
@@ -72,8 +77,8 @@ def call_ollama(model_name: str, prompt: str, temperature: float = 0.0) -> str:
         resp = requests.post(
             _BASE_URL,
             json=payload,
-            headers=_HEADERS,
             timeout=_TIMEOUT,
+            headers=_HEADERS
         )
         resp.raise_for_status()
         return resp.json().get("response", "")

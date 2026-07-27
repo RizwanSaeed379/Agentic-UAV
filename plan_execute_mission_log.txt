@@ -6530,3 +6530,391 @@
 11:57:00  INFO        WP_BRAVO reached    : True
 11:57:00  INFO        Replans             : 1
 11:57:00  INFO      ============================================================
+11:27:36  INFO      ============================================================
+11:27:36  INFO      PARADIGM B: Plan-and-Execute — Wildfire Boundary Mapping
+11:27:36  INFO      Planner : qwen2.5:7b
+11:27:36  INFO      Executor: mistral
+11:27:36  INFO      Route   : Home → WP_ALPHA → MIDPOINT → ANOMALY → WP_BRAVO → RTL
+11:27:36  INFO      Log     : E:\uav dependability lab 26\agentic UAV\plan_execute_mission_log.txt
+11:27:36  INFO      ============================================================
+11:27:36  INFO      Auto-detecting ArduPlane SITL ...
+11:27:36  INFO        Trying tcp:127.0.0.1:5762 ...
+11:27:36  INFO      [OK] Connected: tcp:127.0.0.1:5762 | sysid=1 | Fixed-wing
+11:27:40  INFO      [OK] Telemetry thread running
+11:27:41  INFO      Waiting for GPS lock (6 sats) ...
+11:27:41  INFO      [OK] GPS lock
+11:27:41  INFO      ============================================================
+11:27:41  INFO      Calling PLANNER before takeoff (ground = free battery) ...
+11:27:41  INFO      ============================================================
+11:27:41  INFO      PLANNER called (attempt 1/3) ...
+11:27:54  INFO      PLANNER generated 4 steps
+11:27:54  INFO        Plan[0]: NAV_WAYPOINT {'lat': 33.712, 'lon': 72.9812, 'alt': 30.0}
+11:27:54  INFO        Plan[1]: LOITER_TURNS {'lat': 33.7134, 'lon': 72.9812, 'alt': 30.0, 'turns': 2, 'radius': 80}
+11:27:54  INFO        Plan[2]: NAV_WAYPOINT {'lat': 33.712, 'lon': 72.995, 'alt': 30.0}
+11:27:54  INFO        Plan[3]: RTL {}
+11:27:54  INFO      ============================================================
+11:27:54  INFO      EXECUTOR validating all plan steps on ground ...
+11:27:54  INFO      ============================================================
+11:27:54  INFO      EXECUTOR validating: NAV_WAYPOINT {'lat': 33.712, 'lon': 72.9812, 'alt': 30.0}
+11:27:59  INFO      EXECUTOR confirmed: NAV_WAYPOINT
+11:27:59  INFO        [0] NAV_WAYPOINT confirmed by executor
+11:27:59  INFO      EXECUTOR validating: LOITER_TURNS {'lat': 33.7134, 'lon': 72.9812, 'alt': 30.0, 'turns': 2, 'radius': 80}
+11:28:02  INFO      EXECUTOR confirmed: LOITER_TURNS
+11:28:02  INFO        [1] LOITER_TURNS confirmed by executor
+11:28:02  INFO      EXECUTOR validating: NAV_WAYPOINT {'lat': 33.712, 'lon': 72.995, 'alt': 30.0}
+11:28:04  INFO      EXECUTOR confirmed: NAV_WAYPOINT
+11:28:04  INFO        [2] NAV_WAYPOINT confirmed by executor
+11:28:04  INFO        [3] RTL — trivially safe, auto-confirmed
+11:28:04  INFO      ============================================================
+11:28:04  INFO      Building full mission from validated plan ...
+11:28:04  INFO      Full mission: 7 items
+11:28:04  INFO        seq=0 cmd=16 (33.7097,72.9673,0m)
+11:28:04  INFO        seq=1 cmd=22 (33.7097,72.9673,30m)
+11:28:04  INFO        seq=2 cmd=16 (33.7120,72.9673,30m)
+11:28:04  INFO        seq=3 cmd=16 (33.7120,72.9812,30m)
+11:28:04  INFO        seq=4 cmd=18 (33.7134,72.9812,30m)
+11:28:04  INFO        seq=5 cmd=16 (33.7120,72.9950,30m)
+11:28:04  INFO        seq=6 cmd=20 (0.0000,0.0000,0m)
+11:28:04  INFO      Uploading 7 mission item(s) ...
+11:28:05  INFO      [OK] Mission accepted (7 items)
+11:28:05  INFO      [OK] Full mission uploaded (7 items) — no mid-flight uploads needed
+11:28:05  INFO      Setting mode -> AUTO ...
+11:28:05  INFO      [OK] Mode: AUTO
+11:28:05  INFO      Arming ...
+11:28:06  INFO      [OK] Armed
+11:28:06  INFO      [OK] Takeoff started — ArduPlane flying full mission autonomously
+11:28:06  INFO      ============================================================
+11:28:06  INFO      MONITORING flight — ArduPlane handles navigation ...
+11:28:06  INFO      ============================================================
+11:28:06  INFO      [MONITOR] seq=1 mode=AUTO bat=99% alt=600m
+11:28:08  INFO      [MONITOR] seq=1 mode=AUTO bat=99% alt=600m
+11:28:10  INFO      [MONITOR] seq=1 mode=AUTO bat=98% alt=609m
+11:28:12  INFO      [OK] WP_ALPHA passed (seq=3 dist=143m bat=97%)
+11:28:12  INFO      [MONITOR] seq=3 mode=AUTO bat=97% alt=618m
+11:28:14  INFO      [MONITOR] seq=3 mode=AUTO bat=97% alt=620m
+11:28:16  INFO      [MONITOR] seq=3 mode=AUTO bat=97% alt=618m
+11:28:18  INFO      [MONITOR] seq=3 mode=AUTO bat=97% alt=617m
+11:28:20  INFO      [MONITOR] seq=3 mode=AUTO bat=96% alt=616m
+11:28:22  INFO      [MONITOR] seq=3 mode=AUTO bat=96% alt=615m
+11:28:24  INFO      [MONITOR] seq=3 mode=AUTO bat=96% alt=615m
+11:28:26  INFO      [MONITOR] seq=3 mode=AUTO bat=96% alt=614m
+11:28:28  INFO      [MONITOR] seq=3 mode=AUTO bat=96% alt=614m
+11:28:30  INFO      [MONITOR] seq=3 mode=AUTO bat=96% alt=614m
+11:28:32  INFO      [MONITOR] seq=3 mode=AUTO bat=95% alt=614m
+11:28:34  INFO      [MONITOR] seq=3 mode=AUTO bat=95% alt=614m
+11:28:36  INFO      [MONITOR] seq=3 mode=AUTO bat=95% alt=614m
+11:28:38  INFO      [MONITOR] seq=3 mode=AUTO bat=95% alt=614m
+11:28:40  INFO      [MONITOR] seq=3 mode=AUTO bat=95% alt=614m
+11:28:42  INFO      [MONITOR] seq=3 mode=AUTO bat=95% alt=614m
+11:28:44  INFO      [MONITOR] seq=3 mode=AUTO bat=95% alt=614m
+11:28:46  INFO      [MONITOR] seq=3 mode=AUTO bat=94% alt=614m
+11:28:48  INFO      [MONITOR] seq=3 mode=AUTO bat=94% alt=614m
+11:28:50  INFO      [MONITOR] seq=3 mode=AUTO bat=94% alt=614m
+11:28:52  INFO      [MONITOR] seq=3 mode=AUTO bat=94% alt=614m
+11:28:54  INFO      [MONITOR] seq=3 mode=AUTO bat=94% alt=614m
+11:28:56  INFO      [MONITOR] seq=3 mode=AUTO bat=94% alt=614m
+11:28:58  INFO      [MONITOR] seq=3 mode=AUTO bat=94% alt=614m
+11:29:00  INFO      [MONITOR] seq=3 mode=AUTO bat=93% alt=614m
+11:29:02  INFO      [MONITOR] seq=3 mode=AUTO bat=93% alt=614m
+11:29:04  INFO      [OK] MIDPOINT passed (seq=4 dist=198m bat=93%)
+11:29:04  INFO      [ANOMALY] Triggered — plane 198m from MIDPOINT (seq=4)
+11:29:04  INFO      ============================================================
+11:29:04  INFO      [REPLAN] Anomaly detected — halting for mid-flight replan ...
+11:29:04  INFO      ============================================================
+11:29:04  INFO      Setting mode -> LOITER ...
+11:29:05  INFO      [OK] Mode: LOITER
+11:29:05  INFO      [REPLAN] Mode set to LOITER — plane holding position
+11:29:05  INFO      [REPLAN] Calling Planner with anomaly context ...
+11:29:05  INFO      PLANNER called (attempt 1/3) ...
+11:29:12  INFO      PLANNER generated 3 steps
+11:29:12  INFO        Plan[0]: LOITER_TURNS {'lat': 33.7134, 'lon': 72.9812, 'alt': 30.0, 'turns': 2, 'radius': 80}
+11:29:12  INFO        Plan[1]: NAV_WAYPOINT {'lat': 33.712, 'lon': 72.995, 'alt': 30.0}
+11:29:12  INFO        Plan[2]: RTL {}
+11:29:12  INFO      [REPLAN] Planner returned 3 new steps:
+11:29:12  INFO        New[0]: LOITER_TURNS {'lat': 33.7134, 'lon': 72.9812, 'alt': 30.0, 'turns': 2, 'radius': 80}
+11:29:12  INFO        New[1]: NAV_WAYPOINT {'lat': 33.712, 'lon': 72.995, 'alt': 30.0}
+11:29:12  INFO        New[2]: RTL {}
+11:29:12  INFO      [REPLAN] Executor validating new steps ...
+11:29:12  INFO      EXECUTOR validating: LOITER_TURNS {'lat': 33.7134, 'lon': 72.9812, 'alt': 30.0, 'turns': 2, 'radius': 80}
+11:29:16  INFO      EXECUTOR confirmed: LOITER_TURNS
+11:29:16  INFO        [R0] LOITER_TURNS confirmed by executor
+11:29:16  INFO      EXECUTOR validating: NAV_WAYPOINT {'lat': 33.712, 'lon': 72.995, 'alt': 30.0}
+11:29:18  INFO      EXECUTOR → NAV_WAYPOINT (modified)
+11:29:18  INFO        [R1] NAV_WAYPOINT confirmed by executor
+11:29:18  INFO        [R2] RTL — auto-confirmed
+11:29:18  INFO      [REPLAN] Uploading new mission (7 items) ...
+11:29:18  INFO      Uploading 7 mission item(s) ...
+11:29:19  INFO      [OK] Mission accepted (7 items)
+11:29:19  INFO      Setting mode -> AUTO ...
+11:29:20  INFO      [OK] Mode: AUTO
+11:29:20  INFO      [REPLAN] ✓ New mission uploaded — resuming AUTO from seq=4
+11:29:20  INFO      [REPLAN] Replans so far: 1
+11:29:20  INFO      [MONITOR] seq=4 mode=AUTO bat=93% alt=614m
+11:29:22  INFO      [MONITOR] seq=4 mode=MANUAL bat=90% alt=613m
+11:29:24  INFO      [MONITOR] seq=4 mode=MANUAL bat=89% alt=614m
+11:29:26  INFO      [MONITOR] seq=4 mode=MANUAL bat=89% alt=613m
+11:29:28  INFO      [MONITOR] seq=4 mode=MANUAL bat=89% alt=613m
+11:29:30  INFO      [MONITOR] seq=4 mode=MANUAL bat=89% alt=613m
+11:29:32  INFO      [MONITOR] seq=4 mode=MANUAL bat=89% alt=613m
+11:29:34  INFO      [MONITOR] seq=4 mode=MANUAL bat=88% alt=613m
+11:29:36  INFO      [MONITOR] seq=4 mode=MANUAL bat=88% alt=613m
+11:29:38  INFO      [MONITOR] seq=4 mode=MANUAL bat=88% alt=614m
+11:29:40  INFO      [MONITOR] seq=4 mode=MANUAL bat=88% alt=614m
+11:29:42  INFO      [MONITOR] seq=4 mode=MANUAL bat=87% alt=614m
+11:29:44  INFO      [MONITOR] seq=4 mode=MANUAL bat=87% alt=614m
+11:29:46  INFO      [MONITOR] seq=4 mode=MANUAL bat=87% alt=614m
+11:29:48  INFO      [MONITOR] seq=4 mode=MANUAL bat=86% alt=614m
+11:29:50  INFO      [MONITOR] seq=4 mode=MANUAL bat=86% alt=614m
+11:29:52  INFO      [MONITOR] seq=4 mode=MANUAL bat=86% alt=614m
+11:29:54  INFO      [MONITOR] seq=4 mode=MANUAL bat=86% alt=614m
+11:29:56  INFO      [MONITOR] seq=4 mode=MANUAL bat=85% alt=614m
+11:29:58  INFO      [MONITOR] seq=4 mode=MANUAL bat=85% alt=614m
+11:30:00  INFO      [MONITOR] seq=4 mode=MANUAL bat=85% alt=614m
+11:30:02  INFO      [MONITOR] seq=4 mode=MANUAL bat=85% alt=614m
+11:30:04  INFO      [MONITOR] seq=4 mode=MANUAL bat=84% alt=614m
+11:30:06  INFO      [MONITOR] seq=4 mode=MANUAL bat=84% alt=614m
+11:30:08  INFO      [MONITOR] seq=4 mode=MANUAL bat=84% alt=614m
+11:30:10  INFO      [MONITOR] seq=4 mode=MANUAL bat=83% alt=614m
+11:30:12  INFO      [MONITOR] seq=4 mode=MANUAL bat=83% alt=614m
+11:30:14  INFO      [MONITOR] seq=4 mode=MANUAL bat=83% alt=614m
+11:30:16  INFO      [MONITOR] seq=4 mode=MANUAL bat=83% alt=614m
+11:30:18  INFO      [MONITOR] seq=4 mode=MANUAL bat=82% alt=614m
+11:30:20  INFO      [MONITOR] seq=4 mode=MANUAL bat=82% alt=614m
+11:30:22  INFO      [MONITOR] seq=4 mode=MANUAL bat=82% alt=614m
+11:30:24  INFO      [MONITOR] seq=4 mode=MANUAL bat=82% alt=614m
+11:30:26  INFO      [MONITOR] seq=4 mode=MANUAL bat=81% alt=614m
+11:30:28  INFO      [OK] LOITER complete (seq=5 bat=81%)
+11:30:28  INFO      [MONITOR] seq=5 mode=MANUAL bat=81% alt=614m
+11:30:30  INFO      [MONITOR] seq=5 mode=MANUAL bat=81% alt=614m
+11:30:32  INFO      [MONITOR] seq=5 mode=AUTO bat=80% alt=614m
+11:30:34  INFO      [MONITOR] seq=5 mode=AUTO bat=80% alt=614m
+11:30:36  INFO      [MONITOR] seq=5 mode=AUTO bat=80% alt=614m
+11:30:38  INFO      [MONITOR] seq=5 mode=AUTO bat=80% alt=614m
+11:30:40  INFO      [MONITOR] seq=5 mode=AUTO bat=80% alt=614m
+11:30:42  INFO      [MONITOR] seq=5 mode=AUTO bat=80% alt=614m
+11:30:44  INFO      [MONITOR] seq=5 mode=AUTO bat=79% alt=614m
+11:30:46  INFO      [MONITOR] seq=5 mode=AUTO bat=79% alt=614m
+11:30:48  INFO      [MONITOR] seq=5 mode=AUTO bat=79% alt=614m
+11:30:50  INFO      [MONITOR] seq=5 mode=AUTO bat=79% alt=614m
+11:30:52  INFO      [MONITOR] seq=5 mode=AUTO bat=79% alt=614m
+11:30:54  INFO      [MONITOR] seq=5 mode=AUTO bat=79% alt=614m
+11:30:56  INFO      [MONITOR] seq=5 mode=AUTO bat=79% alt=614m
+11:30:58  INFO      [MONITOR] seq=5 mode=AUTO bat=78% alt=614m
+11:31:00  INFO      [MONITOR] seq=5 mode=AUTO bat=78% alt=614m
+11:31:02  INFO      [MONITOR] seq=5 mode=AUTO bat=78% alt=614m
+11:31:04  INFO      [MONITOR] seq=5 mode=AUTO bat=78% alt=614m
+11:31:06  INFO      [MONITOR] seq=5 mode=AUTO bat=78% alt=614m
+11:31:08  INFO      [MONITOR] seq=5 mode=AUTO bat=78% alt=614m
+11:31:10  INFO      [MONITOR] seq=5 mode=AUTO bat=78% alt=617m
+11:31:12  INFO      [MONITOR] seq=5 mode=AUTO bat=78% alt=621m
+11:31:14  INFO      [MONITOR] seq=5 mode=AUTO bat=77% alt=624m
+11:31:16  INFO      [MONITOR] seq=5 mode=AUTO bat=77% alt=628m
+11:31:18  INFO      [MONITOR] seq=5 mode=AUTO bat=77% alt=633m
+11:31:20  INFO      [MONITOR] seq=5 mode=AUTO bat=77% alt=639m
+11:31:22  INFO      [MONITOR] seq=5 mode=AUTO bat=77% alt=645m
+11:31:24  INFO      [MONITOR] seq=5 mode=AUTO bat=77% alt=649m
+11:31:26  INFO      [OK] WP_BRAVO passed (seq=6 dist=180m bat=77%)
+11:31:26  INFO      [MONITOR] seq=6 mode=RTL bat=77% alt=652m
+11:31:26  INFO      [OK] Mission complete — RTL active
+11:31:26  INFO      ============================================================
+11:31:26  INFO      MISSION SUMMARY:
+11:31:26  INFO        WP_ALPHA visited    : True
+11:31:26  INFO        MIDPOINT reached    : True
+11:31:26  INFO        Anomaly investigated: True
+11:31:26  INFO        WP_BRAVO reached    : True
+11:31:26  INFO        Replans             : 1
+11:31:26  INFO      ============================================================
+02:06:55  INFO      ============================================================
+02:06:55  INFO      PARADIGM B: Plan-and-Execute — Wildfire Boundary Mapping
+02:06:55  INFO      Planner : qwen2.5:7b
+02:06:55  INFO      Executor: mistral
+02:06:55  INFO      Route   : Home → WP_ALPHA → MIDPOINT → ANOMALY → WP_BRAVO → RTL
+02:06:55  INFO      Log     : E:\uav dependability lab 26\agentic UAV\plan_execute_mission_log.txt
+02:06:55  INFO      ============================================================
+02:06:55  INFO      Auto-detecting ArduPlane SITL ...
+02:06:55  INFO        Trying tcp:127.0.0.1:5762 ...
+02:06:55  INFO      [OK] Connected: tcp:127.0.0.1:5762 | sysid=1 | Fixed-wing
+02:06:59  INFO      [OK] Telemetry thread running
+02:07:00  INFO      Waiting for GPS lock (6 sats) ...
+02:07:00  INFO      [OK] GPS lock
+02:07:00  INFO      ============================================================
+02:07:00  INFO      Calling PLANNER before takeoff (ground = free battery) ...
+02:07:00  INFO      ============================================================
+02:07:00  INFO      PLANNER called (attempt 1/3) ...
+02:07:13  INFO      PLANNER generated 4 steps
+02:07:13  INFO        Plan[0]: NAV_WAYPOINT {'lat': 33.712, 'lon': 72.9812, 'alt': 30.0}
+02:07:13  INFO        Plan[1]: LOITER_TURNS {'lat': 33.7134, 'lon': 72.9812, 'alt': 30.0, 'turns': 2, 'radius': 80}
+02:07:13  INFO        Plan[2]: NAV_WAYPOINT {'lat': 33.712, 'lon': 72.995, 'alt': 30.0}
+02:07:13  INFO        Plan[3]: RTL {}
+02:07:13  INFO      ============================================================
+02:07:13  INFO      EXECUTOR validating all plan steps on ground ...
+02:07:13  INFO      ============================================================
+02:07:13  INFO      EXECUTOR validating: NAV_WAYPOINT {'lat': 33.712, 'lon': 72.9812, 'alt': 30.0}
+02:07:18  INFO      EXECUTOR confirmed: NAV_WAYPOINT
+02:07:18  INFO        [0] NAV_WAYPOINT confirmed by executor
+02:07:18  INFO      EXECUTOR validating: LOITER_TURNS {'lat': 33.7134, 'lon': 72.9812, 'alt': 30.0, 'turns': 2, 'radius': 80}
+02:07:21  INFO      EXECUTOR confirmed: LOITER_TURNS
+02:07:21  INFO        [1] LOITER_TURNS confirmed by executor
+02:07:21  INFO      EXECUTOR validating: NAV_WAYPOINT {'lat': 33.712, 'lon': 72.995, 'alt': 30.0}
+02:07:23  INFO      EXECUTOR confirmed: NAV_WAYPOINT
+02:07:23  INFO        [2] NAV_WAYPOINT confirmed by executor
+02:07:23  INFO        [3] RTL — trivially safe, auto-confirmed
+02:07:23  INFO      ============================================================
+02:07:23  INFO      Building full mission from validated plan ...
+02:07:23  INFO      Full mission: 7 items
+02:07:24  INFO        seq=0 cmd=16 (33.7097,72.9673,0m)
+02:07:24  INFO        seq=1 cmd=22 (33.7097,72.9673,30m)
+02:07:24  INFO        seq=2 cmd=16 (33.7120,72.9673,30m)
+02:07:24  INFO        seq=3 cmd=16 (33.7120,72.9812,30m)
+02:07:24  INFO        seq=4 cmd=18 (33.7134,72.9812,30m)
+02:07:24  INFO        seq=5 cmd=16 (33.7120,72.9950,30m)
+02:07:24  INFO        seq=6 cmd=20 (0.0000,0.0000,0m)
+02:07:24  INFO      Uploading 7 mission item(s) ...
+02:07:24  INFO      [OK] Mission accepted (7 items)
+02:07:24  INFO      [OK] Full mission uploaded (7 items) — no mid-flight uploads needed
+02:07:24  INFO      Setting mode -> AUTO ...
+02:07:24  INFO      [OK] Mode: AUTO
+02:07:24  INFO      Arming ...
+02:07:25  INFO      [OK] Armed
+02:07:25  INFO      [OK] Takeoff started — ArduPlane flying full mission autonomously
+02:07:25  INFO      ============================================================
+02:07:25  INFO      MONITORING flight — ArduPlane handles navigation ...
+02:07:25  INFO      ============================================================
+02:07:25  INFO      [MONITOR] seq=1 mode=AUTO bat=99% alt=600m
+02:07:27  INFO      [MONITOR] seq=1 mode=AUTO bat=99% alt=600m
+02:07:29  INFO      [MONITOR] seq=1 mode=AUTO bat=98% alt=611m
+02:07:32  INFO      [OK] WP_ALPHA passed (seq=3 dist=136m bat=97%)
+02:07:32  INFO      [MONITOR] seq=3 mode=AUTO bat=97% alt=619m
+02:07:34  INFO      [MONITOR] seq=3 mode=MANUAL bat=97% alt=619m
+02:07:36  INFO      [MONITOR] seq=3 mode=AUTO bat=97% alt=618m
+02:07:38  INFO      [MONITOR] seq=3 mode=MANUAL bat=97% alt=617m
+02:07:40  INFO      [MONITOR] seq=3 mode=AUTO bat=96% alt=616m
+02:07:42  INFO      [MONITOR] seq=3 mode=MANUAL bat=96% alt=615m
+02:07:44  INFO      [MONITOR] seq=3 mode=MANUAL bat=96% alt=615m
+02:07:46  INFO      [MONITOR] seq=3 mode=MANUAL bat=96% alt=614m
+02:07:48  INFO      [MONITOR] seq=3 mode=MANUAL bat=96% alt=614m
+02:07:50  INFO      [MONITOR] seq=3 mode=MANUAL bat=96% alt=614m
+02:07:52  INFO      [MONITOR] seq=3 mode=AUTO bat=95% alt=614m
+02:07:54  INFO      [MONITOR] seq=3 mode=AUTO bat=95% alt=614m
+02:07:56  INFO      [MONITOR] seq=3 mode=AUTO bat=95% alt=614m
+02:07:58  INFO      [MONITOR] seq=3 mode=AUTO bat=95% alt=614m
+02:08:00  INFO      [MONITOR] seq=3 mode=AUTO bat=95% alt=614m
+02:08:02  INFO      [MONITOR] seq=3 mode=AUTO bat=95% alt=614m
+02:08:04  INFO      [MONITOR] seq=3 mode=AUTO bat=95% alt=614m
+02:08:06  INFO      [MONITOR] seq=3 mode=AUTO bat=94% alt=614m
+02:08:08  INFO      [MONITOR] seq=3 mode=AUTO bat=94% alt=614m
+02:08:10  INFO      [MONITOR] seq=3 mode=AUTO bat=94% alt=614m
+02:08:12  INFO      [MONITOR] seq=3 mode=AUTO bat=94% alt=614m
+02:08:14  INFO      [MONITOR] seq=3 mode=AUTO bat=94% alt=614m
+02:08:16  INFO      [MONITOR] seq=3 mode=AUTO bat=94% alt=614m
+02:08:18  INFO      [MONITOR] seq=3 mode=AUTO bat=94% alt=614m
+02:08:20  INFO      [MONITOR] seq=3 mode=AUTO bat=93% alt=614m
+02:08:22  INFO      [MONITOR] seq=3 mode=AUTO bat=93% alt=614m
+02:08:24  INFO      [OK] MIDPOINT passed (seq=4 dist=192m bat=93%)
+02:08:24  INFO      [ANOMALY] Triggered — plane 192m from MIDPOINT (seq=4)
+02:08:24  INFO      ============================================================
+02:08:24  INFO      [REPLAN] Anomaly detected — halting for mid-flight replan ...
+02:08:24  INFO      ============================================================
+02:08:24  INFO      Setting mode -> LOITER ...
+02:08:24  INFO      [OK] Mode: LOITER
+02:08:24  INFO      [REPLAN] Mode set to LOITER — plane holding position
+02:08:24  INFO      [REPLAN] Calling Planner with anomaly context ...
+02:08:24  INFO      PLANNER called (attempt 1/3) ...
+02:08:31  INFO      PLANNER generated 3 steps
+02:08:31  INFO        Plan[0]: LOITER_TURNS {'lat': 33.7134, 'lon': 72.9812, 'alt': 30.0, 'turns': 2, 'radius': 80}
+02:08:31  INFO        Plan[1]: NAV_WAYPOINT {'lat': 33.712, 'lon': 72.995, 'alt': 30.0}
+02:08:31  INFO        Plan[2]: RTL {}
+02:08:31  INFO      [REPLAN] Planner returned 3 new steps:
+02:08:31  INFO        New[0]: LOITER_TURNS {'lat': 33.7134, 'lon': 72.9812, 'alt': 30.0, 'turns': 2, 'radius': 80}
+02:08:31  INFO        New[1]: NAV_WAYPOINT {'lat': 33.712, 'lon': 72.995, 'alt': 30.0}
+02:08:31  INFO        New[2]: RTL {}
+02:08:31  INFO      [REPLAN] Executor validating new steps ...
+02:08:31  INFO      EXECUTOR validating: LOITER_TURNS {'lat': 33.7134, 'lon': 72.9812, 'alt': 30.0, 'turns': 2, 'radius': 80}
+02:08:34  INFO      EXECUTOR confirmed: LOITER_TURNS
+02:08:34  INFO        [R0] LOITER_TURNS confirmed by executor
+02:08:34  INFO      EXECUTOR validating: NAV_WAYPOINT {'lat': 33.712, 'lon': 72.995, 'alt': 30.0}
+02:08:37  INFO      EXECUTOR → NAV_WAYPOINT (modified)
+02:08:37  INFO        [R1] NAV_WAYPOINT confirmed by executor
+02:08:37  INFO        [R2] RTL — auto-confirmed
+02:08:37  INFO      [REPLAN] Uploading new mission (7 items) ...
+02:08:37  INFO      Uploading 7 mission item(s) ...
+02:08:37  INFO      [OK] Mission accepted (7 items)
+02:08:38  INFO      Setting mode -> AUTO ...
+02:08:38  INFO      [OK] Mode: AUTO
+02:08:38  INFO      [REPLAN] ✓ New mission uploaded — resuming AUTO from seq=4
+02:08:38  INFO      [REPLAN] Replans so far: 1
+02:08:38  INFO      [MONITOR] seq=4 mode=AUTO bat=93% alt=614m
+02:08:40  INFO      [MONITOR] seq=4 mode=AUTO bat=90% alt=613m
+02:08:42  INFO      [MONITOR] seq=4 mode=AUTO bat=89% alt=614m
+02:08:44  INFO      [MONITOR] seq=4 mode=AUTO bat=89% alt=614m
+02:08:46  INFO      [MONITOR] seq=4 mode=AUTO bat=89% alt=613m
+02:08:48  INFO      [MONITOR] seq=4 mode=AUTO bat=89% alt=613m
+02:08:50  INFO      [MONITOR] seq=4 mode=AUTO bat=89% alt=613m
+02:08:52  INFO      [MONITOR] seq=4 mode=AUTO bat=88% alt=613m
+02:08:54  INFO      [MONITOR] seq=4 mode=AUTO bat=88% alt=613m
+02:08:56  INFO      [MONITOR] seq=4 mode=AUTO bat=88% alt=614m
+02:08:58  INFO      [MONITOR] seq=4 mode=AUTO bat=88% alt=614m
+02:09:00  INFO      [MONITOR] seq=4 mode=AUTO bat=87% alt=614m
+02:09:02  INFO      [MONITOR] seq=4 mode=AUTO bat=87% alt=614m
+02:09:04  INFO      [MONITOR] seq=4 mode=AUTO bat=87% alt=614m
+02:09:06  INFO      [MONITOR] seq=4 mode=AUTO bat=86% alt=614m
+02:09:08  INFO      [MONITOR] seq=4 mode=AUTO bat=86% alt=614m
+02:09:10  INFO      [MONITOR] seq=4 mode=AUTO bat=86% alt=614m
+02:09:12  INFO      [MONITOR] seq=4 mode=AUTO bat=86% alt=614m
+02:09:14  INFO      [MONITOR] seq=4 mode=AUTO bat=85% alt=614m
+02:09:16  INFO      [MONITOR] seq=4 mode=AUTO bat=85% alt=614m
+02:09:18  INFO      [MONITOR] seq=4 mode=AUTO bat=85% alt=614m
+02:09:20  INFO      [MONITOR] seq=4 mode=AUTO bat=84% alt=614m
+02:09:22  INFO      [MONITOR] seq=4 mode=AUTO bat=84% alt=614m
+02:09:24  INFO      [MONITOR] seq=4 mode=AUTO bat=84% alt=614m
+02:09:26  INFO      [MONITOR] seq=4 mode=AUTO bat=84% alt=614m
+02:09:28  INFO      [MONITOR] seq=4 mode=AUTO bat=83% alt=614m
+02:09:30  INFO      [MONITOR] seq=4 mode=AUTO bat=83% alt=614m
+02:09:32  INFO      [MONITOR] seq=4 mode=AUTO bat=83% alt=614m
+02:09:34  INFO      [MONITOR] seq=4 mode=AUTO bat=83% alt=614m
+02:09:37  INFO      [MONITOR] seq=4 mode=AUTO bat=82% alt=614m
+02:09:39  INFO      [MONITOR] seq=4 mode=AUTO bat=82% alt=614m
+02:09:41  INFO      [MONITOR] seq=4 mode=MANUAL bat=82% alt=614m
+02:09:43  INFO      [MONITOR] seq=4 mode=MANUAL bat=82% alt=614m
+02:09:45  INFO      [MONITOR] seq=4 mode=MANUAL bat=81% alt=614m
+02:09:47  INFO      [OK] LOITER complete (seq=5 bat=81%)
+02:09:47  INFO      [MONITOR] seq=5 mode=MANUAL bat=81% alt=614m
+02:09:49  INFO      [MONITOR] seq=5 mode=MANUAL bat=81% alt=614m
+02:09:51  INFO      [MONITOR] seq=5 mode=MANUAL bat=80% alt=614m
+02:09:53  INFO      [MONITOR] seq=5 mode=MANUAL bat=80% alt=614m
+02:09:55  INFO      [MONITOR] seq=5 mode=AUTO bat=80% alt=614m
+02:09:57  INFO      [MONITOR] seq=5 mode=AUTO bat=80% alt=614m
+02:09:59  INFO      [MONITOR] seq=5 mode=AUTO bat=80% alt=614m
+02:10:01  INFO      [MONITOR] seq=5 mode=MANUAL bat=80% alt=614m
+02:10:03  INFO      [MONITOR] seq=5 mode=MANUAL bat=79% alt=614m
+02:10:05  INFO      [MONITOR] seq=5 mode=AUTO bat=79% alt=614m
+02:10:07  INFO      [MONITOR] seq=5 mode=AUTO bat=79% alt=614m
+02:10:09  INFO      [MONITOR] seq=5 mode=AUTO bat=79% alt=614m
+02:10:11  INFO      [MONITOR] seq=5 mode=AUTO bat=79% alt=614m
+02:10:13  INFO      [MONITOR] seq=5 mode=AUTO bat=79% alt=614m
+02:10:15  INFO      [MONITOR] seq=5 mode=AUTO bat=79% alt=614m
+02:10:17  INFO      [MONITOR] seq=5 mode=AUTO bat=78% alt=614m
+02:10:19  INFO      [MONITOR] seq=5 mode=AUTO bat=78% alt=614m
+02:10:21  INFO      [MONITOR] seq=5 mode=AUTO bat=78% alt=614m
+02:10:23  INFO      [MONITOR] seq=5 mode=AUTO bat=78% alt=614m
+02:10:25  INFO      [MONITOR] seq=5 mode=AUTO bat=78% alt=614m
+02:10:27  INFO      [MONITOR] seq=5 mode=AUTO bat=78% alt=614m
+02:10:29  INFO      [MONITOR] seq=5 mode=AUTO bat=78% alt=617m
+02:10:31  INFO      [MONITOR] seq=5 mode=AUTO bat=77% alt=620m
+02:10:33  INFO      [MONITOR] seq=5 mode=AUTO bat=77% alt=623m
+02:10:35  INFO      [MONITOR] seq=5 mode=AUTO bat=77% alt=627m
+02:10:37  INFO      [MONITOR] seq=5 mode=AUTO bat=77% alt=633m
+02:10:39  INFO      [MONITOR] seq=5 mode=AUTO bat=77% alt=638m
+02:10:41  INFO      [MONITOR] seq=5 mode=AUTO bat=77% alt=644m
+02:10:43  INFO      [MONITOR] seq=5 mode=AUTO bat=77% alt=649m
+02:10:45  INFO      [OK] WP_BRAVO passed (seq=6 dist=183m bat=77%)
+02:10:45  INFO      [MONITOR] seq=6 mode=RTL bat=77% alt=652m
+02:10:45  INFO      [OK] Mission complete — RTL active
+02:10:45  INFO      ============================================================
+02:10:45  INFO      MISSION SUMMARY:
+02:10:45  INFO        WP_ALPHA visited    : True
+02:10:45  INFO        MIDPOINT reached    : True
+02:10:45  INFO        Anomaly investigated: True
+02:10:45  INFO        WP_BRAVO reached    : True
+02:10:45  INFO        Replans             : 1
+02:10:45  INFO      ============================================================

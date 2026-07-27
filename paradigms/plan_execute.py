@@ -7,7 +7,8 @@ TWO roles:
 
 NAVIGATION ARCHITECTURE (same fixes as ReAct):
   - Segment-by-segment AUTO navigation, single NAV_WAYPOINT per segment
-    (DO_JUMP rejected by ArduPlane V4.8.0-dev MAVLink — removed)
+    (DO_JUMP loop-back removed — only needed to hold the plane during slow
+     local LLM inference, which is no longer the case)
   - MISSION_CLEAR_ALL → wait ACK → MISSION_COUNT (no re-upload during poll)
   - 200m acceptance radius (80m causes orbiting at 15-20 m/s)
   - Mode drift: re-set AUTO only, never re-upload mid-poll
@@ -33,6 +34,7 @@ from shared.tools import (
     execute_tool, TOOL_REGISTRY,
 )
 from shared.prompts import PLAN_EXECUTE_SYSTEM_PROMPT
+from shared.logger import log_run
 from pymavlink import mavutil
 
 # ---------------------------------------------------------------------------
@@ -260,7 +262,7 @@ def _force_auto(master, attempts=15, interval=1.0):
 def _fly_segment(master, uav, lat, lon, alt, label,
                  timeout=_NAV_TIMEOUT, reach=_WP_REACH_DIST):
     """
-    Upload NAV_WAYPOINT+DO_JUMP, fly in AUTO, poll distance every 2s.
+    Upload a single NAV_WAYPOINT, fly in AUTO, poll distance every 2s.
     On mode drift: send MISSION_SET_CURRENT(0) then call _force_auto()
     which retries AUTO every 1s until confirmed — breaks RTL cycle fast.
     """
@@ -275,8 +277,7 @@ def _fly_segment(master, uav, lat, lon, alt, label,
     items = [
         # seq 0 is RESERVED by ArduPilot for HOME — overwritten with the
         # vehicle's home position and never executed. Real mission starts at
-        # seq 1, else the target is discarded and the DO_JUMP loops onto home
-        # (plane loiters over home / RTLs).
+        # seq 1, else the target is discarded.
         dict(seq=0, frame=0,
              command=mavutil.mavlink.MAV_CMD_NAV_WAYPOINT,
              current=0, autocontinue=1,
@@ -287,10 +288,6 @@ def _fly_segment(master, uav, lat, lon, alt, label,
              current=1, autocontinue=1,
              p1=0, p2=200, p3=0, p4=0,
              x=lat, y=lon, z=alt),
-        dict(seq=2, frame=frame,
-             command=mavutil.mavlink.MAV_CMD_DO_JUMP,
-             current=0, autocontinue=1,
-             p1=1, p2=9999, p3=0, p4=0, x=0, y=0, z=0),
     ]
     ok = _send_items_hold_auto(master, items)
     if not ok:
@@ -349,7 +346,7 @@ def _fly_loiter(master, uav, lat, lon, alt, turns, radius):
              p1=0, p2=0, p3=0, p4=0,
              x=HOME_LAT, y=HOME_LON, z=0),
         dict(seq=1, frame=frame, command=mavutil.mavlink.MAV_CMD_NAV_LOITER_TURNS,
-             current=1, autocontinue=0,   # autocontinue=0: no DO_JUMP (rejected by V4.8)
+             current=1, autocontinue=0,   # autocontinue=0 holds the loiter (no DO_JUMP loop)
              p1=turns, p2=0, p3=radius, p4=0,
              x=lat, y=lon, z=alt),
     ]
@@ -439,7 +436,7 @@ _EXECUTOR_SYSTEM = (
     "1. The 'command' field value MUST match the planned step command exactly.\n"
     "   You CANNOT change NAV_WAYPOINT to LOITER_TURNS or vice versa.\n"
     "   You can only modify the 'params' (lat/lon/alt/turns/radius).\n"
-    "2. battery_pct < 25: change command to RTL, params to {}.\n"
+    "2. battery_pct < 15: change command to RTL, params to {}.\n"
     "3. If params look correct: confirm unchanged.\n"
     "4. If params need adjustment (e.g. wrong alt): modify params only.\n\n"
     "Output EXACTLY ONE JSON object, nothing else:\n"
@@ -461,7 +458,7 @@ _EXECUTOR_RETRY = (
 def call_executor(step: dict, telemetry: dict) -> dict:
     # Python battery override — never trust LLM for safety
     bat = telemetry.get("battery_pct", 100)
-    if 0 <= bat < 25:
+    if 0 <= bat < 15:
         log.warning("[EXECUTOR] Battery critical (%d%%) — RTL override", bat)
         return {"type":"flight_command","command":"RTL","params":{},"abort":True}
 
@@ -504,7 +501,12 @@ def execute_flight_command(master, cmd_dict: dict, uav: UAVState) -> bool:
     log.info("Executing: %s %s", command, params)
 
     if command in TOOL_CMDS:
-        result = execute_tool(TOOL_CMDS[command], {}, uav)
+        # BUG FIX: params were discarded here ({} was passed unconditionally),
+        # so CHECK_BATTERY/CHECK_GEOFENCE could never receive target coords.
+        # Planner emits {} for these steps; execute_tool now falls back to the
+        # anomaly location in that case. Return value is unchanged (True) —
+        # tool steps remain advisory and do not gate the mission.
+        result = execute_tool(TOOL_CMDS[command], params, uav)
         log.info("[TOOL] %s → %s", command, result)
         return True
 
@@ -545,7 +547,10 @@ def execute_flight_command(master, cmd_dict: dict, uav: UAVState) -> bool:
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
-def run_plan_execute_mission() -> None:
+def run_plan_execute_mission(scenario_id: str = "SC1", run_number: int = 1) -> None:
+    _run_start = time.time()
+    llm_calls  = 0   # best-effort: counts planner + executor invocations
+    anomaly_response = "NONE"
     log.info("="*60)
     log.info("PARADIGM B: Plan-and-Execute — Wildfire Boundary Mapping")
     log.info("Planner : %s", MODEL_PLANNER)
@@ -582,6 +587,7 @@ def run_plan_execute_mission() -> None:
         f"4. RTL. "
         f"Output exactly these 4 steps and nothing else."
     )
+    llm_calls += 1
     current_plan = call_planner(mission_context, past_steps=[])
 
     # -----------------------------------------------------------------------
@@ -601,6 +607,7 @@ def run_plan_execute_mission() -> None:
         else:
             # ALL other steps (NAV_WAYPOINT, LOITER_TURNS) go through executor
             telemetry = uav.get_state()
+            llm_calls += 1
             validated = call_executor(step, telemetry)
             # Type safety: RTL override always accepted, other type changes reverted
             exec_cmd = validated.get("command", "")
@@ -709,6 +716,21 @@ def run_plan_execute_mission() -> None:
     upload_ok = _send_items(master, full_mission)
     if not upload_ok:
         log.error("[ABORT] Full mission upload failed — not arming.")
+        log_run(
+            paradigm="PlanExecute",
+            model_primary=MODEL_PLANNER,
+            model_secondary=MODEL_EXECUTOR,
+            scenario_id=scenario_id,
+            run_number=run_number,
+            outcome="FAILED",
+            failure_type="COMMUNICATION",
+            waypoints_visited=[],
+            anomaly_response="NONE",
+            llm_calls=llm_calls,
+            duration_seconds=time.time() - _run_start,
+            telemetry_final=uav.get_state(),
+            notes="mission upload failed before arming",
+        )
         uav.stop(); master.close(); return
 
     log.info("[OK] Full mission uploaded (%d items) — no mid-flight uploads needed", len(full_mission))
@@ -805,6 +827,7 @@ def run_plan_execute_mission() -> None:
                     log.info("[REPLAN] Calling Planner with anomaly context ...")
                     # Pass [] for past_steps — completed steps are described
                     # in replan_context string already, not as step dicts.
+                    llm_calls += 1
                     new_plan = call_planner(replan_context, past_steps=[])
 
                     if new_plan:
@@ -822,6 +845,7 @@ def run_plan_execute_mission() -> None:
                                 log.info("  [R%d] %s — auto-confirmed", j, step_cmd)
                             else:
                                 cur_telem = uav.get_state()
+                                llm_calls += 1
                                 vstep = call_executor(step, cur_telem)
                                 exec_cmd = vstep.get("command", "")
                                 if exec_cmd != step_cmd and exec_cmd != "RTL":
@@ -943,6 +967,7 @@ def run_plan_execute_mission() -> None:
 
             if not loiter_ok and wp > SEQ_LOITER:
                 loiter_ok = True
+                anomaly_response = "LOITER_TURNS"
                 log.info("[OK] LOITER complete (seq=%d bat=%d%%)", wp, bat)
 
             if not bravo_ok and wp > SEQ_BRAVO:
@@ -978,6 +1003,29 @@ def run_plan_execute_mission() -> None:
         log.info("  WP_BRAVO reached    : %s", bravo_ok)
         log.info("  Replans             : %d", replan_count)
         log.info("="*60)
+
+        # Structured run log — best-effort field derivation from local state.
+        visited = [w for w, ok in (
+            ("WP_ALPHA", wp_alpha_ok), ("MIDPOINT", midpoint_ok),
+            ("ANOMALY", loiter_ok), ("WP_BRAVO", bravo_ok)) if ok]
+        outcome = "COMPLETED" if bravo_ok else (
+            "ABORTED_RTL" if anomaly_fired else "FAILED")
+        log_run(
+            paradigm="PlanExecute",
+            model_primary=MODEL_PLANNER,
+            model_secondary=MODEL_EXECUTOR,
+            scenario_id=scenario_id,
+            run_number=run_number,
+            outcome=outcome,
+            failure_type="NONE" if outcome == "COMPLETED" else "",
+            waypoints_visited=visited,
+            anomaly_response=anomaly_response,
+            llm_calls=llm_calls,
+            duration_seconds=time.time() - _run_start,
+            telemetry_final=uav.get_state(),
+            notes=f"replans={replan_count}",
+        )
+
         uav.stop()
         master.close()
 

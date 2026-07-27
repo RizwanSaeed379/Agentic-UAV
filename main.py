@@ -53,6 +53,22 @@ def print_banner() -> None:
     )
 
 
+def select_scenario() -> str:
+    """
+    Ask which test scenario this run belongs to. SC1 is the standard wildfire
+    mission (the only one currently implemented) and is the default. Other IDs
+    (SC2–SC6) are accepted as labels for the run log but do not yet change the
+    mission behaviour — define them before relying on them.
+    """
+    choice = input(
+        "Test scenario? [SC1 = standard wildfire mission] "
+        "(press Enter for SC1): "
+    ).strip().upper()
+    if not choice:
+        return "SC1"
+    return choice
+
+
 def print_preflight_checklist() -> bool:
     """Print the pre-flight checklist and ask for user confirmation."""
     print(
@@ -159,18 +175,21 @@ def main() -> None:
         if choice == "A":
             if not print_preflight_checklist():
                 continue
+            scenario = select_scenario()
             from paradigms.react_agent import run_react_mission
-            run_react_mission()
+            run_react_mission(scenario_id=scenario)
 
         elif choice == "B":
             if not print_preflight_checklist():
                 continue
+            scenario = select_scenario()
             from paradigms.plan_execute import run_plan_execute_mission
-            run_plan_execute_mission()
+            run_plan_execute_mission(scenario_id=scenario)
 
         elif choice == "C":
             if not print_preflight_checklist():
                 continue
+            scenario = select_scenario()
             from paradigms.reflexion_agent import (
                 run_reflexion_mission,
                 get_attempt_number,
@@ -180,7 +199,7 @@ def main() -> None:
             print(f"\nReflexion — Attempt #{attempt}")
             if attempt > 1:
                 print(f"Loading {attempt - 1} past reflection(s) from memory")
-            run_reflexion_mission()
+            run_reflexion_mission(scenario_id=scenario)
             print(f"\nAttempt #{attempt} complete.")
             print("Run again (select C) to attempt with accumulated memory.")
 

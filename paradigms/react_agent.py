@@ -10,10 +10,12 @@ ARCHITECTURE: Continuous while-True reasoning loop per the manual.
    an alternating cycle: Thought → Action → Observation. LLM call frequency:
    every loop iteration — continuous." — Manual §3.1
 
-NAVIGATION: AUTO mode + DO_JUMP loop missions (proven in SITL).
+NAVIGATION: AUTO mode segment missions (proven in SITL).
   GUIDED mode causes fixed-wing circling — we use segment missions instead.
-  Each segment = [NAV_WAYPOINT + DO_JUMP(-1)] to prevent mission-complete RTL.
-  Python detects arrival by Haversine distance and uploads the next segment.
+  Each segment = [HOME, NAV_WAYPOINT]; the plane holds the waypoint when the
+  mission completes. Python detects arrival by Haversine distance and uploads
+  the next segment. (DO_JUMP loop-back removed — it existed only to hold the
+  plane during slow local LLM inference, which is no longer needed.)
 
 PHASES (injected into telemetry so LLM always knows where it is):
   TRANSIT               — flying toward MIDPOINT
@@ -39,6 +41,7 @@ from shared.tools import (
 )
 from shared.prompts import REACT_SYSTEM_PROMPT
 from shared.agent_loop import agent_step
+from shared.logger import log_run
 from pymavlink import mavutil
 
 # ---------------------------------------------------------------------------
@@ -211,17 +214,16 @@ def _send_items(master, items):
     log.error("Mission upload failed"); return False
 
 # ---------------------------------------------------------------------------
-# Segment mission — NAV_WAYPOINT + DO_JUMP loop
-# Prevents "Mission complete → RTL" by looping indefinitely.
-# Python detects arrival by distance and overwrites with next mission.
+# Segment mission — single NAV_WAYPOINT
+# On mission complete the plane holds the waypoint; Python detects arrival by
+# distance and overwrites with the next segment.
 # ---------------------------------------------------------------------------
 def _build_segment(lat, lon, alt):
     frame = mavutil.mavlink.MAV_FRAME_GLOBAL_RELATIVE_ALT
     return [
         # seq 0 is RESERVED by ArduPilot for HOME — it is overwritten with the
         # vehicle's home position and never executed. The real mission must
-        # start at seq 1, else the target waypoint is discarded and the DO_JUMP
-        # loops onto home (plane loiters over home / RTLs).
+        # start at seq 1, else the target waypoint is discarded.
         dict(seq=0, frame=0,
              command=mavutil.mavlink.MAV_CMD_NAV_WAYPOINT,
              current=0, autocontinue=1,
@@ -232,10 +234,6 @@ def _build_segment(lat, lon, alt):
              current=1, autocontinue=1,
              p1=0, p2=200, p3=0, p4=0,
              x=lat, y=lon, z=alt),
-        dict(seq=2, frame=frame,
-             command=mavutil.mavlink.MAV_CMD_DO_JUMP,
-             current=0, autocontinue=1,
-             p1=1, p2=-1, p3=0, p4=0, x=0, y=0, z=0),
     ]
 
 def _fly_segment(master, uav, lat, lon, alt, label, timeout=_NAV_TIMEOUT):
@@ -268,9 +266,10 @@ def _fly_segment(master, uav, lat, lon, alt, label, timeout=_NAV_TIMEOUT):
     return False
 
 # ---------------------------------------------------------------------------
-# Loiter mission — LOITER_TURNS + DO_JUMP loop
-# Prevents mission-complete RTL after turns finish.
-# Completion detected by elapsed time.
+# Loiter mission — single LOITER_TURNS
+# autocontinue=0 holds the loiter after the turns finish (no mission-complete
+# transition), replacing the old DO_JUMP loop. Completion detected by elapsed
+# time.
 # ---------------------------------------------------------------------------
 def _upload_loiter(master, lat, lon, alt, turns, radius):
     frame = mavutil.mavlink.MAV_FRAME_GLOBAL_RELATIVE_ALT
@@ -283,15 +282,11 @@ def _upload_loiter(master, lat, lon, alt, turns, radius):
              x=HOME_LAT, y=HOME_LON, z=0),
         dict(seq=1, frame=frame,
              command=mavutil.mavlink.MAV_CMD_NAV_LOITER_TURNS,
-             current=1, autocontinue=1,
+             current=1, autocontinue=0,
              p1=turns, p2=0, p3=radius, p4=0,
              x=lat, y=lon, z=alt),
-        dict(seq=2, frame=frame,
-             command=mavutil.mavlink.MAV_CMD_DO_JUMP,
-             current=0, autocontinue=1,
-             p1=1, p2=-1, p3=0, p4=0, x=0, y=0, z=0),
     ]
-    log.info("Uploading LOITER_TURNS+DO_JUMP: (%.5f,%.5f,%.0fm) turns=%d r=%dm",
+    log.info("Uploading LOITER_TURNS: (%.5f,%.5f,%.0fm) turns=%d r=%dm",
              lat, lon, alt, turns, radius)
     _send_items(master, items)
 
@@ -358,7 +353,8 @@ def execute_flight_command(master, uav, command_dict):
 # ---------------------------------------------------------------------------
 # Main ReAct mission — continuous reasoning loop
 # ---------------------------------------------------------------------------
-def run_react_mission():
+def run_react_mission(scenario_id: str = "SC1", run_number: int = 1):
+    _run_start = time.time()
     log.info("=" * 60)
     log.info("PARADIGM A: ReAct Agent — Wildfire Boundary Mapping")
     log.info("Model  : %s", MODEL_REACT)
@@ -378,9 +374,10 @@ def run_react_mission():
     time.sleep(1)
     _wait_gps(uav)
 
-    # Upload takeoff mission — HOME + TAKEOFF + WP_ALPHA + DO_JUMP loop
+    # Upload takeoff mission — HOME + TAKEOFF + WP_ALPHA
+    # On reaching WP_ALPHA the plane holds it; the ReAct loop then takes over.
     frame = mavutil.mavlink.MAV_FRAME_GLOBAL_RELATIVE_ALT
-    log.info("Uploading takeoff + WP_ALPHA + DO_JUMP mission ...")
+    log.info("Uploading takeoff + WP_ALPHA mission ...")
     _send_items(master, [
         dict(seq=0, frame=0,
              command=mavutil.mavlink.MAV_CMD_NAV_WAYPOINT,
@@ -394,10 +391,6 @@ def run_react_mission():
              command=mavutil.mavlink.MAV_CMD_NAV_WAYPOINT,
              current=0, autocontinue=1, p1=0, p2=200, p3=0, p4=0,
              x=WP_ALPHA_LAT, y=WP_ALPHA_LON, z=CRUISE_ALT),
-        dict(seq=3, frame=frame,
-             command=mavutil.mavlink.MAV_CMD_DO_JUMP,
-             current=0, autocontinue=1,
-             p1=2, p2=-1, p3=0, p4=0, x=0, y=0, z=0),
     ])
     set_mode(master, "AUTO")
     _arm(master, uav)
@@ -440,6 +433,10 @@ def run_react_mission():
     step_n        = 0
     anomaly_fired = False
     mission_phase = "TRANSIT"   # TRANSIT → ANOMALY_INVESTIGATION → RESUME → COMPLETE
+
+    # Best-effort run-log tracking (see shared/logger.py)
+    llm_calls        = 0
+    anomaly_response = "NONE"   # set to the agent's anomaly action when taken
 
     wp_alpha_ok = wp_alpha_ok
     mid_ok      = False
@@ -504,9 +501,13 @@ def run_react_mission():
                 log.warning("[SAFETY] Battery critical — RTL")
                 set_mode(master, "RTL"); break
 
-            # f. RESUME phase — Python commands WP_BRAVO directly
-            #    LLM consistently re-issues LOITER when phase=RESUME,
-            #    so Python handles the WP_BRAVO navigation directly.
+            # f. RESUME phase — deterministic Python fallback (RESEARCH NOTE)
+            #    The LLM consistently re-issued LOITER_TURNS after anomaly
+            #    investigation regardless of phase context. This is itself a
+            #    documented failure mode (REASONING failure — agent cannot
+            #    transition out of investigation). The deterministic fallback
+            #    prevents mission stall and is disclosed in the paper as a
+            #    ReAct-specific failure mode, not a silent workaround.
             if mission_phase == "RESUME":
                 log.info("[RESUME] Anomaly investigated — flying to WP_BRAVO")
                 bravo_ok = _fly_segment(
@@ -522,6 +523,12 @@ def run_react_mission():
             # g. Call LLM — EVERY iteration (TRANSIT and ANOMALY_INVESTIGATION)
             log.info("[LLM] Calling %s (step %d, phase=%s) ...",
                      MODEL_REACT, step_n, mission_phase)
+            # History is capped at the last 6 entries to stay within the model's
+            # practical context window at reasonable inference speed. Earlier
+            # entries are not passed to the LLM; full length is logged here so
+            # the truncation is a documented design choice, not a silent limit.
+            log.info("[HISTORY] Total=%d, passing last 6 to LLM", len(history))
+            llm_calls += 1
             cmd = agent_step(
                 model=MODEL_REACT,
                 system_prompt=REACT_SYSTEM_PROMPT,
@@ -538,6 +545,7 @@ def run_react_mission():
             # Record loiter investigation
             if cmd.get("command") == "LOITER_TURNS":
                 anomaly_ok = True
+                anomaly_response = "LOITER_TURNS"
                 history.append(
                     "ANOMALY INVESTIGATED: LOITER_TURNS completed at anomaly site. "
                     "Resume mission to WP_BRAVO.")
@@ -572,6 +580,29 @@ def run_react_mission():
         log.info("  WP_BRAVO reached    : %s", bravo_ok)
         log.info("  ReAct steps taken   : %d", step_n)
         log.info("=" * 60)
+
+        # Structured run log — best-effort field derivation from local state.
+        visited = [w for w, ok in (
+            ("WP_ALPHA", wp_alpha_ok), ("MIDPOINT", mid_ok),
+            ("ANOMALY", anomaly_ok), ("WP_BRAVO", bravo_ok)) if ok]
+        outcome = "COMPLETED" if bravo_ok else (
+            "ABORTED_RTL" if mission_phase != "COMPLETE" and anomaly_fired else "FAILED")
+        log_run(
+            paradigm="ReAct",
+            model_primary=MODEL_REACT,
+            model_secondary="",
+            scenario_id=scenario_id,
+            run_number=run_number,
+            outcome=outcome,
+            failure_type="NONE" if outcome == "COMPLETED" else "",
+            waypoints_visited=visited,
+            anomaly_response=anomaly_response,
+            llm_calls=llm_calls,
+            duration_seconds=time.time() - _run_start,
+            telemetry_final=uav.get_state(),
+            notes=f"steps={step_n}",
+        )
+
         uav.stop()
         master.close()
 

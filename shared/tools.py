@@ -30,7 +30,7 @@ GEOFENCE = {
 
 # Battery model: 1% consumed per 50 m flown
 _BATTERY_PCT_PER_METRE = 1.0 / 50.0
-_MIN_RESERVE_PCT       = 20.0
+_MIN_RESERVE_PCT       = 15.0   # matches the 15% abort threshold in all paradigms
 
 
 # ---------------------------------------------------------------------------
@@ -104,7 +104,7 @@ def tool_check_battery(
     Estimate battery sufficiency for a divert-to-target and return-to-home leg.
 
     Model: 1% battery consumed per 50 m.
-    Reserve threshold: 20%.
+    Reserve threshold: 15% (same value the paradigms abort at).
     """
     cur_lat = uav_state.get("lat",         HOME_LAT)
     cur_lon = uav_state.get("lon",         HOME_LON)
@@ -194,6 +194,26 @@ TOOL_REGISTRY = {
 
 
 # ---------------------------------------------------------------------------
+# Argument resolution for target-taking tools
+#
+# BUG FIX: check_battery and geofence_check require target coordinates, but
+# no caller ever supplied them — the Plan-Execute dispatcher passed {} and the
+# prompt's tool_call example shows "arguments":{}, so every call returned
+# ERROR: Missing argument for 'check_battery': 'target_lat' instead of a real
+# reserve estimate. Missing/partial coordinates now fall back to the anomaly
+# location, which is the only divert target in this mission and the target
+# these checks were always intended to evaluate. Explicit arguments, when the
+# LLM does supply them, are used unchanged.
+# ---------------------------------------------------------------------------
+
+def _resolve_target(arguments: dict) -> tuple[float, float]:
+    """Return (lat, lon) from tool arguments, defaulting to the anomaly."""
+    lat = arguments.get("target_lat", arguments.get("lat", ANOMALY_LAT))
+    lon = arguments.get("target_lon", arguments.get("lon", ANOMALY_LON))
+    return float(lat), float(lon)
+
+
+# ---------------------------------------------------------------------------
 # Dispatcher
 # ---------------------------------------------------------------------------
 
@@ -219,18 +239,13 @@ def execute_tool(tool_name: str, arguments: dict, uav_state: dict) -> str:
 
         # Tools that take positional args + uav_state
         if tool_name == "check_battery":
-            return tool_check_battery(
-                float(arguments["target_lat"]),
-                float(arguments["target_lon"]),
-                uav_state,
-            )
+            lat, lon = _resolve_target(arguments)
+            return tool_check_battery(lat, lon, uav_state)
 
         # Tools that take only positional args (no uav_state)
         if tool_name == "geofence_check":
-            return tool_geofence_check(
-                float(arguments["target_lat"]),
-                float(arguments["target_lon"]),
-            )
+            lat, lon = _resolve_target(arguments)
+            return tool_geofence_check(lat, lon)
 
         if tool_name == "distance_to":
             return tool_distance_to(

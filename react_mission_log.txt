@@ -8684,3 +8684,448 @@
 17:45:46  INFO        WP_BRAVO reached    : True
 17:45:46  INFO        ReAct steps taken   : 3
 17:45:46  INFO      ============================================================
+11:18:29  INFO      ============================================================
+11:18:29  INFO      PARADIGM A: ReAct Agent — Wildfire Boundary Mapping
+11:18:29  INFO      Model  : llama3
+11:18:29  INFO      Route  : Home → WP_ALPHA → MIDPOINT → ANOMALY → WP_BRAVO → RTL
+11:18:29  INFO      Loop   : LLM called every 5s — continuous reasoning
+11:18:29  INFO      Log    : E:\uav dependability lab 26\agentic UAV\react_mission_log.txt
+11:18:29  INFO      ============================================================
+11:18:29  INFO      Auto-detecting ArduPlane SITL ...
+11:18:29  INFO        Trying tcp:127.0.0.1:5762 ...
+11:18:29  INFO      [OK] Connected: tcp:127.0.0.1:5762 | sysid=1
+11:18:33  INFO      [OK] Telemetry thread running
+11:18:34  INFO      Waiting for GPS lock (6 sats) ...
+11:18:34  INFO      [OK] GPS lock
+11:18:35  INFO      Uploading takeoff + WP_ALPHA + DO_JUMP mission ...
+11:18:35  INFO      Uploading 4 mission item(s) ...
+11:18:35  INFO      [OK] Mission accepted (4 items)
+11:18:35  INFO      Setting mode -> AUTO ...
+11:18:35  INFO      [OK] Mode: AUTO
+11:18:35  INFO      Arming ...
+11:18:40  INFO      [OK] Armed
+11:18:40  INFO      [OK] Takeoff started — waiting for WP_ALPHA before ReAct loop
+11:18:40  INFO      ============================================================
+11:18:40  INFO      PHASE 1: Waiting for AUTO flight to WP_ALPHA ...
+11:18:40  INFO      ============================================================
+11:18:40  INFO      [PHASE 1] wp=1 mode=AUTO bat=98% AGL~28m dist_alpha=187m
+11:18:42  INFO      [PHASE 1] wp=2 mode=AUTO bat=97% AGL~35m dist_alpha=131m
+11:18:42  INFO      [OK] WP_ALPHA reached (wp=2 dist=131m)
+11:18:42  INFO      ============================================================
+11:18:42  INFO      Starting ReAct reasoning loop — LLM called every 5s
+11:18:42  INFO      ============================================================
+11:18:47  INFO      --- Step 1 | phase=TRANSIT                | mode=AUTO | bat=97% | wp=2 ---
+11:18:47  INFO      [LLM] Calling llama3 (step 1, phase=TRANSIT) ...
+11:18:55  INFO      [LLM] Decision: NAV_WAYPOINT {'lat': 33.712, 'lon': 72.9812, 'alt': 30.0}
+11:18:55  INFO      Executing: NAV_WAYPOINT {'lat': 33.712, 'lon': 72.9812, 'alt': 30.0}
+11:18:55  INFO      [NAV] WP(33.7120,72.9812) → (33.71200, 72.98120, 30m)
+11:18:55  INFO      Uploading 3 mission item(s) ...
+11:18:56  INFO      [OK] Mission accepted (3 items)
+11:18:56  INFO      Setting mode -> AUTO ...
+11:18:56  INFO      [OK] Mode: AUTO
+11:18:56  INFO      [NAV] WP(33.7120,72.9812) — dist=1408m | mode=AUTO | bat=95%
+11:18:58  INFO      [NAV] WP(33.7120,72.9812) — dist=1383m | mode=MANUAL | bat=94%
+11:18:58  INFO      [NAV] Mode=MANUAL — re-setting AUTO
+11:18:58  INFO      Setting mode -> AUTO ...
+11:18:58  INFO      [OK] Mode: AUTO
+11:19:00  INFO      [NAV] WP(33.7120,72.9812) — dist=1302m | mode=AUTO | bat=93%
+11:19:02  INFO      [NAV] WP(33.7120,72.9812) — dist=1252m | mode=AUTO | bat=93%
+11:19:04  INFO      [NAV] WP(33.7120,72.9812) — dist=1204m | mode=AUTO | bat=93%
+11:19:06  INFO      [NAV] WP(33.7120,72.9812) — dist=1158m | mode=AUTO | bat=93%
+11:19:08  INFO      [NAV] WP(33.7120,72.9812) — dist=1113m | mode=AUTO | bat=93%
+11:19:10  INFO      [NAV] WP(33.7120,72.9812) — dist=1069m | mode=AUTO | bat=92%
+11:19:12  INFO      [NAV] WP(33.7120,72.9812) — dist=1025m | mode=AUTO | bat=92%
+11:19:14  INFO      [NAV] WP(33.7120,72.9812) — dist=981m | mode=AUTO | bat=92%
+11:19:16  INFO      [NAV] WP(33.7120,72.9812) — dist=937m | mode=AUTO | bat=92%
+11:19:18  INFO      [NAV] WP(33.7120,72.9812) — dist=893m | mode=AUTO | bat=92%
+11:19:20  INFO      [NAV] WP(33.7120,72.9812) — dist=850m | mode=AUTO | bat=92%
+11:19:22  INFO      [NAV] WP(33.7120,72.9812) — dist=807m | mode=AUTO | bat=92%
+11:19:24  INFO      [NAV] WP(33.7120,72.9812) — dist=763m | mode=AUTO | bat=91%
+11:19:26  INFO      [NAV] WP(33.7120,72.9812) — dist=720m | mode=AUTO | bat=91%
+11:19:28  INFO      [NAV] WP(33.7120,72.9812) — dist=677m | mode=AUTO | bat=91%
+11:19:30  INFO      [NAV] WP(33.7120,72.9812) — dist=633m | mode=AUTO | bat=91%
+11:19:32  INFO      [NAV] WP(33.7120,72.9812) — dist=590m | mode=AUTO | bat=91%
+11:19:34  INFO      [NAV] WP(33.7120,72.9812) — dist=547m | mode=AUTO | bat=91%
+11:19:36  INFO      [NAV] WP(33.7120,72.9812) — dist=504m | mode=AUTO | bat=90%
+11:19:38  INFO      [NAV] WP(33.7120,72.9812) — dist=460m | mode=AUTO | bat=90%
+11:19:40  INFO      [NAV] WP(33.7120,72.9812) — dist=417m | mode=AUTO | bat=90%
+11:19:42  INFO      [NAV] WP(33.7120,72.9812) — dist=374m | mode=AUTO | bat=90%
+11:19:45  INFO      [NAV] WP(33.7120,72.9812) — dist=330m | mode=AUTO | bat=90%
+11:19:47  INFO      [NAV] WP(33.7120,72.9812) — dist=287m | mode=AUTO | bat=90%
+11:19:49  INFO      [NAV] WP(33.7120,72.9812) — dist=244m | mode=AUTO | bat=90%
+11:19:51  INFO      [NAV] WP(33.7120,72.9812) — dist=201m | mode=AUTO | bat=89%
+11:19:53  INFO      [NAV] WP(33.7120,72.9812) — dist=157m | mode=AUTO | bat=89%
+11:19:53  INFO      [OK] WP(33.7120,72.9812) reached (157m)
+11:19:53  INFO      Step 1 complete | command=NAV_WAYPOINT | phase=TRANSIT | history=2
+11:19:58  INFO      MIDPOINT reached (49m) — triggering dual anomaly!
+11:19:58  INFO      --- Step 2 | phase=TRANSIT                | mode=MANUAL | bat=89% | wp=1 ---
+11:19:58  INFO      [LLM] Calling llama3 (step 2, phase=TRANSIT) ...
+11:20:00  INFO      [LLM] Decision: LOITER_TURNS {'lat': 33.7134, 'lon': 72.9812, 'alt': 30.0, 'turns': 2, 'radius': 80}
+11:20:00  INFO      Executing: LOITER_TURNS {'lat': 33.7134, 'lon': 72.9812, 'alt': 30.0, 'turns': 2, 'radius': 80}
+11:20:00  INFO      Uploading LOITER_TURNS+DO_JUMP: (33.71340,72.98120,30m) turns=2 r=80m
+11:20:00  INFO      Uploading 3 mission item(s) ...
+11:20:01  INFO      [OK] Mission accepted (3 items)
+11:20:01  INFO      Setting mode -> AUTO ...
+11:20:01  INFO      [OK] Mode: AUTO
+11:20:01  INFO      [CMD] LOITER_TURNS → AUTO turns=2 r=80m
+11:20:01  INFO      Loiter wait — turns=2 min=67s
+11:20:09  INFO        [LOITER] elapsed=0s mode=MANUAL bat=87%
+11:20:12  INFO        [LOITER] elapsed=3s mode=AUTO bat=86%
+11:20:15  INFO        [LOITER] elapsed=6s mode=AUTO bat=85%
+11:20:18  INFO        [LOITER] elapsed=9s mode=AUTO bat=84%
+11:20:21  INFO        [LOITER] elapsed=12s mode=AUTO bat=83%
+11:20:24  INFO        [LOITER] elapsed=15s mode=AUTO bat=83%
+11:20:27  INFO        [LOITER] elapsed=18s mode=AUTO bat=82%
+11:20:30  INFO        [LOITER] elapsed=21s mode=AUTO bat=82%
+11:20:33  INFO        [LOITER] elapsed=24s mode=AUTO bat=81%
+11:20:36  INFO        [LOITER] elapsed=27s mode=AUTO bat=81%
+11:20:39  INFO        [LOITER] elapsed=30s mode=AUTO bat=80%
+11:20:42  INFO        [LOITER] elapsed=33s mode=AUTO bat=80%
+11:20:45  INFO        [LOITER] elapsed=36s mode=AUTO bat=79%
+11:20:48  INFO        [LOITER] elapsed=39s mode=AUTO bat=79%
+11:20:51  INFO        [LOITER] elapsed=42s mode=AUTO bat=79%
+11:20:54  INFO        [LOITER] elapsed=45s mode=AUTO bat=78%
+11:20:57  INFO        [LOITER] elapsed=48s mode=AUTO bat=78%
+11:21:01  INFO        [LOITER] elapsed=51s mode=AUTO bat=77%
+11:21:04  INFO        [LOITER] elapsed=54s mode=AUTO bat=77%
+11:21:07  INFO        [LOITER] elapsed=57s mode=AUTO bat=76%
+11:21:10  INFO        [LOITER] elapsed=60s mode=MANUAL bat=76%
+11:21:13  INFO        [LOITER] elapsed=63s mode=MANUAL bat=76%
+11:21:16  INFO        [LOITER] elapsed=66s mode=MANUAL bat=75%
+11:21:19  INFO        [LOITER] elapsed=69s mode=MANUAL bat=75%
+11:21:19  INFO      [OK] Loiter time complete (69s >= min=67s)
+11:21:19  INFO      Loiter investigation recorded in history
+11:21:19  INFO      Step 2 complete | command=LOITER_TURNS | phase=TRANSIT | history=5
+11:21:24  INFO      Phase: TRANSIT → ANOMALY_INVESTIGATION
+11:21:24  INFO      Phase: ANOMALY_INVESTIGATION → RESUME
+11:21:24  INFO      --- Step 3 | phase=RESUME                 | mode=MANUAL | bat=74% | wp=1 ---
+11:21:24  INFO      [RESUME] Anomaly investigated — flying to WP_BRAVO
+11:21:24  INFO      [NAV] WP_BRAVO → (33.71200, 72.99500, 30m)
+11:21:24  INFO      Uploading 3 mission item(s) ...
+11:21:24  INFO      [OK] Mission accepted (3 items)
+11:21:24  INFO      Setting mode -> AUTO ...
+11:21:24  INFO      [OK] Mode: AUTO
+11:21:24  INFO      [NAV] WP_BRAVO — dist=1281m | mode=MANUAL | bat=74%
+11:21:24  INFO      [NAV] Mode=MANUAL — re-setting AUTO
+11:21:24  INFO      Setting mode -> AUTO ...
+11:21:25  INFO      [OK] Mode: AUTO
+11:21:27  INFO      [NAV] WP_BRAVO — dist=1367m | mode=AUTO | bat=73%
+11:21:29  INFO      [NAV] WP_BRAVO — dist=1384m | mode=AUTO | bat=73%
+11:21:31  INFO      [NAV] WP_BRAVO — dist=1375m | mode=AUTO | bat=73%
+11:21:33  INFO      [NAV] WP_BRAVO — dist=1344m | mode=AUTO | bat=73%
+11:21:35  INFO      [NAV] WP_BRAVO — dist=1298m | mode=AUTO | bat=72%
+11:21:37  INFO      [NAV] WP_BRAVO — dist=1247m | mode=AUTO | bat=72%
+11:21:39  INFO      [NAV] WP_BRAVO — dist=1207m | mode=AUTO | bat=72%
+11:21:41  INFO      [NAV] WP_BRAVO — dist=1188m | mode=AUTO | bat=71%
+11:21:43  INFO      [NAV] WP_BRAVO — dist=1198m | mode=AUTO | bat=71%
+11:21:45  INFO      [NAV] WP_BRAVO — dist=1232m | mode=AUTO | bat=71%
+11:21:47  INFO      [NAV] WP_BRAVO — dist=1281m | mode=AUTO | bat=71%
+11:21:49  INFO      [NAV] WP_BRAVO — dist=1330m | mode=AUTO | bat=70%
+11:21:51  INFO      [NAV] WP_BRAVO — dist=1367m | mode=AUTO | bat=70%
+11:21:53  INFO      [NAV] WP_BRAVO — dist=1383m | mode=AUTO | bat=70%
+11:21:56  INFO      [NAV] WP_BRAVO — dist=1375m | mode=AUTO | bat=69%
+11:21:58  INFO      [NAV] WP_BRAVO — dist=1345m | mode=AUTO | bat=69%
+11:22:00  INFO      [NAV] WP_BRAVO — dist=1298m | mode=AUTO | bat=69%
+11:22:02  INFO      [NAV] WP_BRAVO — dist=1248m | mode=AUTO | bat=69%
+11:22:04  INFO      [NAV] WP_BRAVO — dist=1205m | mode=AUTO | bat=68%
+11:22:06  INFO      [NAV] WP_BRAVO — dist=1167m | mode=MANUAL | bat=68%
+11:22:06  INFO      [NAV] Mode=MANUAL — re-setting AUTO
+11:22:06  INFO      Setting mode -> AUTO ...
+11:22:06  INFO      [OK] Mode: AUTO
+11:22:08  INFO      [NAV] WP_BRAVO — dist=1105m | mode=AUTO | bat=68%
+11:22:10  INFO      [NAV] WP_BRAVO — dist=1060m | mode=AUTO | bat=68%
+11:22:12  INFO      [NAV] WP_BRAVO — dist=1016m | mode=AUTO | bat=68%
+11:22:14  INFO      [NAV] WP_BRAVO — dist=972m | mode=AUTO | bat=67%
+11:22:16  INFO      [NAV] WP_BRAVO — dist=928m | mode=AUTO | bat=67%
+11:22:18  INFO      [NAV] WP_BRAVO — dist=885m | mode=AUTO | bat=67%
+11:22:20  INFO      [NAV] WP_BRAVO — dist=842m | mode=AUTO | bat=67%
+11:22:22  INFO      [NAV] WP_BRAVO — dist=799m | mode=AUTO | bat=67%
+11:22:24  INFO      [NAV] WP_BRAVO — dist=756m | mode=AUTO | bat=67%
+11:22:26  INFO      [NAV] WP_BRAVO — dist=713m | mode=AUTO | bat=67%
+11:22:28  INFO      [NAV] WP_BRAVO — dist=670m | mode=AUTO | bat=66%
+11:22:30  INFO      [NAV] WP_BRAVO — dist=627m | mode=AUTO | bat=66%
+11:22:32  INFO      [NAV] WP_BRAVO — dist=584m | mode=AUTO | bat=66%
+11:22:34  INFO      [NAV] WP_BRAVO — dist=541m | mode=AUTO | bat=66%
+11:22:36  INFO      [NAV] WP_BRAVO — dist=498m | mode=AUTO | bat=66%
+11:22:39  INFO      [NAV] WP_BRAVO — dist=455m | mode=AUTO | bat=66%
+11:22:41  INFO      [NAV] WP_BRAVO — dist=412m | mode=AUTO | bat=66%
+11:22:43  INFO      [NAV] WP_BRAVO — dist=373m | mode=AUTO | bat=65%
+11:22:45  INFO      [NAV] WP_BRAVO — dist=347m | mode=AUTO | bat=65%
+11:22:47  INFO      [NAV] WP_BRAVO — dist=327m | mode=AUTO | bat=65%
+11:22:49  INFO      [NAV] WP_BRAVO — dist=308m | mode=MANUAL | bat=65%
+11:22:49  INFO      [NAV] Mode=MANUAL — re-setting AUTO
+11:22:49  INFO      Setting mode -> AUTO ...
+11:22:49  INFO      [OK] Mode: AUTO
+11:22:51  INFO      [NAV] WP_BRAVO — dist=276m | mode=AUTO | bat=65%
+11:22:53  INFO      [NAV] WP_BRAVO — dist=252m | mode=AUTO | bat=65%
+11:22:55  INFO      [NAV] WP_BRAVO — dist=226m | mode=AUTO | bat=65%
+11:22:57  INFO      [NAV] WP_BRAVO — dist=200m | mode=AUTO | bat=65%
+11:22:57  INFO      [OK] WP_BRAVO reached (200m)
+11:22:57  INFO      Phase: RESUME → COMPLETE
+11:22:57  INFO      Setting mode -> RTL ...
+11:22:58  INFO      [OK] Mode: RTL
+11:22:58  INFO      [CMD] RTL — mission complete
+11:22:58  INFO      ============================================================
+11:22:58  INFO      MISSION SUMMARY:
+11:22:58  INFO        WP_ALPHA visited    : True
+11:22:58  INFO        MIDPOINT reached    : True
+11:22:58  INFO        Anomaly investigated: True
+11:22:58  INFO        WP_BRAVO reached    : True
+11:22:58  INFO        ReAct steps taken   : 3
+11:22:58  INFO      ============================================================
+01:56:13  INFO      ============================================================
+01:56:13  INFO      PARADIGM A: ReAct Agent — Wildfire Boundary Mapping
+01:56:13  INFO      Model  : llama3
+01:56:13  INFO      Route  : Home → WP_ALPHA → MIDPOINT → ANOMALY → WP_BRAVO → RTL
+01:56:13  INFO      Loop   : LLM called every 5s — continuous reasoning
+01:56:13  INFO      Log    : E:\uav dependability lab 26\agentic UAV\react_mission_log.txt
+01:56:13  INFO      ============================================================
+01:56:13  INFO      Auto-detecting ArduPlane SITL ...
+01:56:13  INFO        Trying tcp:127.0.0.1:5762 ...
+01:56:13  INFO      [OK] Connected: tcp:127.0.0.1:5762 | sysid=1
+01:56:17  INFO      [OK] Telemetry thread running
+01:56:18  INFO      Waiting for GPS lock (6 sats) ...
+01:56:18  INFO      [OK] GPS lock
+01:56:18  INFO      Uploading takeoff + WP_ALPHA mission ...
+01:56:18  INFO      Uploading 3 mission item(s) ...
+01:56:18  INFO      [OK] Mission accepted (3 items)
+01:56:18  INFO      Setting mode -> AUTO ...
+01:56:19  INFO      [OK] Mode: AUTO
+01:56:19  INFO      Arming ...
+01:56:19  INFO      [OK] Armed
+01:56:19  INFO      [OK] Takeoff started — waiting for WP_ALPHA before ReAct loop
+01:56:19  INFO      ============================================================
+01:56:19  INFO      PHASE 1: Waiting for AUTO flight to WP_ALPHA ...
+01:56:19  INFO      ============================================================
+01:56:19  INFO      [PHASE 1] wp=1 mode=AUTO bat=99% AGL~16m dist_alpha=256m
+01:56:21  INFO      [PHASE 1] wp=1 mode=AUTO bat=99% AGL~16m dist_alpha=245m
+01:56:23  INFO      [PHASE 1] wp=1 mode=AUTO bat=98% AGL~21m dist_alpha=208m
+01:56:25  INFO      [PHASE 1] wp=2 mode=RTL bat=97% AGL~33m dist_alpha=158m
+01:56:25  INFO      [OK] WP_ALPHA reached (wp=2 dist=158m)
+01:56:25  INFO      ============================================================
+01:56:25  INFO      Starting ReAct reasoning loop — LLM called every 5s
+01:56:25  INFO      ============================================================
+01:56:30  INFO      --- Step 1 | phase=TRANSIT                | mode=RTL | bat=96% | wp=2 ---
+01:56:30  INFO      [LLM] Calling llama3 (step 1, phase=TRANSIT) ...
+01:56:30  INFO      [HISTORY] Total=1, passing last 6 to LLM
+01:56:35  INFO      [LLM] Decision: NAV_WAYPOINT {'lat': 33.712, 'lon': 72.9812, 'alt': 30.0}
+01:56:35  INFO      Executing: NAV_WAYPOINT {'lat': 33.712, 'lon': 72.9812, 'alt': 30.0}
+01:56:35  INFO      [NAV] WP(33.7120,72.9812) → (33.71200, 72.98120, 30m)
+01:56:35  INFO      Uploading 2 mission item(s) ...
+01:56:35  INFO      [OK] Mission accepted (2 items)
+01:56:35  INFO      Setting mode -> AUTO ...
+01:56:35  INFO      [OK] Mode: AUTO
+01:56:35  INFO      [NAV] WP(33.7120,72.9812) — dist=1404m | mode=MANUAL | bat=94%
+01:56:35  INFO      [NAV] Mode=MANUAL — re-setting AUTO
+01:56:35  INFO      Setting mode -> AUTO ...
+01:56:36  INFO      [OK] Mode: AUTO
+01:56:38  INFO      [NAV] WP(33.7120,72.9812) — dist=1330m | mode=MANUAL | bat=93%
+01:56:38  INFO      [NAV] Mode=MANUAL — re-setting AUTO
+01:56:38  INFO      Setting mode -> AUTO ...
+01:56:39  INFO      [OK] Mode: AUTO
+01:56:41  INFO      [NAV] WP(33.7120,72.9812) — dist=1254m | mode=MANUAL | bat=93%
+01:56:41  INFO      [NAV] Mode=MANUAL — re-setting AUTO
+01:56:41  INFO      Setting mode -> AUTO ...
+01:56:42  INFO      [OK] Mode: AUTO
+01:56:44  INFO      [NAV] WP(33.7120,72.9812) — dist=1183m | mode=MANUAL | bat=93%
+01:56:44  INFO      [NAV] Mode=MANUAL — re-setting AUTO
+01:56:44  INFO      Setting mode -> AUTO ...
+01:56:45  INFO      [OK] Mode: AUTO
+01:56:47  INFO      [NAV] WP(33.7120,72.9812) — dist=1115m | mode=MANUAL | bat=92%
+01:56:47  INFO      [NAV] Mode=MANUAL — re-setting AUTO
+01:56:47  INFO      Setting mode -> AUTO ...
+01:56:48  INFO      [OK] Mode: AUTO
+01:56:50  INFO      [NAV] WP(33.7120,72.9812) — dist=1049m | mode=MANUAL | bat=92%
+01:56:50  INFO      [NAV] Mode=MANUAL — re-setting AUTO
+01:56:50  INFO      Setting mode -> AUTO ...
+01:56:51  INFO      [OK] Mode: AUTO
+01:56:53  INFO      [NAV] WP(33.7120,72.9812) — dist=962m | mode=AUTO | bat=92%
+01:56:55  INFO      [NAV] WP(33.7120,72.9812) — dist=919m | mode=AUTO | bat=92%
+01:56:57  INFO      [NAV] WP(33.7120,72.9812) — dist=876m | mode=AUTO | bat=92%
+01:56:59  INFO      [NAV] WP(33.7120,72.9812) — dist=833m | mode=AUTO | bat=91%
+01:57:01  INFO      [NAV] WP(33.7120,72.9812) — dist=791m | mode=AUTO | bat=91%
+01:57:03  INFO      [NAV] WP(33.7120,72.9812) — dist=748m | mode=AUTO | bat=91%
+01:57:05  INFO      [NAV] WP(33.7120,72.9812) — dist=706m | mode=AUTO | bat=91%
+01:57:07  INFO      [NAV] WP(33.7120,72.9812) — dist=663m | mode=AUTO | bat=91%
+01:57:09  INFO      [NAV] WP(33.7120,72.9812) — dist=621m | mode=AUTO | bat=91%
+01:57:11  INFO      [NAV] WP(33.7120,72.9812) — dist=578m | mode=AUTO | bat=91%
+01:57:13  INFO      [NAV] WP(33.7120,72.9812) — dist=536m | mode=AUTO | bat=91%
+01:57:15  INFO      [NAV] WP(33.7120,72.9812) — dist=493m | mode=AUTO | bat=91%
+01:57:17  INFO      [NAV] WP(33.7120,72.9812) — dist=451m | mode=AUTO | bat=90%
+01:57:19  INFO      [NAV] WP(33.7120,72.9812) — dist=408m | mode=AUTO | bat=90%
+01:57:21  INFO      [NAV] WP(33.7120,72.9812) — dist=366m | mode=AUTO | bat=90%
+01:57:23  INFO      [NAV] WP(33.7120,72.9812) — dist=324m | mode=AUTO | bat=90%
+01:57:25  INFO      [NAV] WP(33.7120,72.9812) — dist=281m | mode=AUTO | bat=90%
+01:57:27  INFO      [NAV] WP(33.7120,72.9812) — dist=239m | mode=AUTO | bat=90%
+01:57:29  INFO      [NAV] WP(33.7120,72.9812) — dist=196m | mode=RTL | bat=90%
+01:57:29  INFO      [OK] WP(33.7120,72.9812) reached (196m)
+01:57:29  INFO      Step 1 complete | command=NAV_WAYPOINT | phase=TRANSIT | history=2
+01:57:34  INFO      MIDPOINT reached (183m) — triggering dual anomaly!
+01:57:34  INFO      --- Step 2 | phase=TRANSIT                | mode=RTL | bat=88% | wp=1 ---
+01:57:34  INFO      [LLM] Calling llama3 (step 2, phase=TRANSIT) ...
+01:57:34  INFO      [HISTORY] Total=3, passing last 6 to LLM
+01:57:37  INFO      [LLM] Decision: LOITER_TURNS {'lat': 33.7134, 'lon': 72.9812, 'alt': 30.0, 'turns': 2, 'radius': 80}
+01:57:37  INFO      Executing: LOITER_TURNS {'lat': 33.7134, 'lon': 72.9812, 'alt': 30.0, 'turns': 2, 'radius': 80}
+01:57:37  INFO      [CMD] Flying to anomaly site first ...
+01:57:37  INFO      [NAV] ANOMALY_SITE → (33.71340, 72.98120, 30m)
+01:57:37  INFO      Uploading 2 mission item(s) ...
+01:57:38  INFO      [OK] Mission accepted (2 items)
+01:57:38  INFO      Setting mode -> AUTO ...
+01:57:38  INFO      [OK] Mode: AUTO
+01:57:38  INFO      [NAV] ANOMALY_SITE — dist=272m | mode=RTL | bat=87%
+01:57:38  INFO      [NAV] Mode=RTL — re-setting AUTO
+01:57:38  INFO      Setting mode -> AUTO ...
+01:57:39  INFO      [OK] Mode: AUTO
+01:57:41  INFO      [NAV] ANOMALY_SITE — dist=353m | mode=MANUAL | bat=86%
+01:57:41  INFO      [NAV] Mode=MANUAL — re-setting AUTO
+01:57:41  INFO      Setting mode -> AUTO ...
+01:57:42  INFO      [OK] Mode: AUTO
+01:57:44  INFO      [NAV] ANOMALY_SITE — dist=405m | mode=MANUAL | bat=85%
+01:57:44  INFO      [NAV] Mode=MANUAL — re-setting AUTO
+01:57:44  INFO      Setting mode -> AUTO ...
+01:57:45  INFO      [OK] Mode: AUTO
+01:57:47  INFO      [NAV] ANOMALY_SITE — dist=359m | mode=AUTO | bat=84%
+01:57:49  INFO      [NAV] ANOMALY_SITE — dist=278m | mode=AUTO | bat=84%
+01:57:51  INFO      [NAV] ANOMALY_SITE — dist=231m | mode=AUTO | bat=84%
+01:57:53  INFO      [NAV] ANOMALY_SITE — dist=186m | mode=RTL | bat=84%
+01:57:53  INFO      [OK] ANOMALY_SITE reached (186m)
+01:57:53  INFO      Uploading LOITER_TURNS: (33.71340,72.98120,30m) turns=2 r=80m
+01:57:53  INFO      Uploading 2 mission item(s) ...
+01:57:53  INFO      [OK] Mission accepted (2 items)
+01:57:53  INFO      Setting mode -> AUTO ...
+01:57:54  INFO      [OK] Mode: AUTO
+01:57:54  INFO      [CMD] LOITER_TURNS → AUTO turns=2 r=80m
+01:57:54  INFO      Loiter wait — turns=2 min=67s
+01:58:02  INFO        [LOITER] elapsed=0s mode=MANUAL bat=83%
+01:58:05  INFO        [LOITER] elapsed=3s mode=MANUAL bat=82%
+01:58:08  INFO        [LOITER] elapsed=6s mode=MANUAL bat=82%
+01:58:11  INFO        [LOITER] elapsed=9s mode=MANUAL bat=81%
+01:58:14  INFO        [LOITER] elapsed=12s mode=MANUAL bat=81%
+01:58:17  INFO        [LOITER] elapsed=15s mode=MANUAL bat=80%
+01:58:20  INFO        [LOITER] elapsed=18s mode=MANUAL bat=80%
+01:58:23  INFO        [LOITER] elapsed=21s mode=MANUAL bat=80%
+01:58:26  INFO        [LOITER] elapsed=24s mode=MANUAL bat=79%
+01:58:29  INFO        [LOITER] elapsed=27s mode=MANUAL bat=79%
+01:58:32  INFO        [LOITER] elapsed=30s mode=MANUAL bat=78%
+01:58:35  INFO        [LOITER] elapsed=33s mode=MANUAL bat=78%
+01:58:38  INFO        [LOITER] elapsed=36s mode=MANUAL bat=77%
+01:58:41  INFO        [LOITER] elapsed=39s mode=MANUAL bat=77%
+01:58:44  INFO        [LOITER] elapsed=42s mode=MANUAL bat=77%
+01:58:47  INFO        [LOITER] elapsed=45s mode=MANUAL bat=76%
+01:58:50  INFO        [LOITER] elapsed=48s mode=MANUAL bat=75%
+01:58:53  INFO        [LOITER] elapsed=51s mode=MANUAL bat=74%
+01:58:56  INFO        [LOITER] elapsed=54s mode=MANUAL bat=74%
+01:58:59  INFO        [LOITER] elapsed=57s mode=MANUAL bat=73%
+01:59:02  INFO        [LOITER] elapsed=60s mode=MANUAL bat=72%
+01:59:05  INFO        [LOITER] elapsed=63s mode=MANUAL bat=72%
+01:59:08  INFO        [LOITER] elapsed=66s mode=MANUAL bat=72%
+01:59:11  INFO        [LOITER] elapsed=69s mode=MANUAL bat=72%
+01:59:11  INFO      [OK] Loiter time complete (69s >= min=67s)
+01:59:11  INFO      Loiter investigation recorded in history
+01:59:11  INFO      Step 2 complete | command=LOITER_TURNS | phase=TRANSIT | history=5
+01:59:16  INFO      Phase: TRANSIT → ANOMALY_INVESTIGATION
+01:59:16  INFO      Phase: ANOMALY_INVESTIGATION → RESUME
+01:59:16  INFO      --- Step 3 | phase=RESUME                 | mode=MANUAL | bat=71% | wp=1 ---
+01:59:16  INFO      [RESUME] Anomaly investigated — flying to WP_BRAVO
+01:59:16  INFO      [NAV] WP_BRAVO → (33.71200, 72.99500, 30m)
+01:59:16  INFO      Uploading 2 mission item(s) ...
+01:59:17  INFO      [OK] Mission accepted (2 items)
+01:59:17  INFO      Setting mode -> AUTO ...
+01:59:17  INFO      [OK] Mode: AUTO
+01:59:17  INFO      [NAV] WP_BRAVO — dist=2010m | mode=MANUAL | bat=71%
+01:59:17  INFO      [NAV] Mode=MANUAL — re-setting AUTO
+01:59:17  INFO      Setting mode -> AUTO ...
+01:59:17  INFO      [OK] Mode: AUTO
+01:59:19  INFO      [NAV] WP_BRAVO — dist=2068m | mode=MANUAL | bat=71%
+01:59:19  INFO      [NAV] Mode=MANUAL — re-setting AUTO
+01:59:19  INFO      Setting mode -> AUTO ...
+01:59:20  INFO      [OK] Mode: AUTO
+01:59:22  INFO      [NAV] WP_BRAVO — dist=2055m | mode=AUTO | bat=70%
+01:59:24  INFO      [NAV] WP_BRAVO — dist=2003m | mode=AUTO | bat=70%
+01:59:26  INFO      [NAV] WP_BRAVO — dist=1954m | mode=AUTO | bat=69%
+01:59:28  INFO      [NAV] WP_BRAVO — dist=1906m | mode=AUTO | bat=69%
+01:59:30  INFO      [NAV] WP_BRAVO — dist=1861m | mode=AUTO | bat=69%
+01:59:32  INFO      [NAV] WP_BRAVO — dist=1817m | mode=AUTO | bat=69%
+01:59:34  INFO      [NAV] WP_BRAVO — dist=1773m | mode=AUTO | bat=69%
+01:59:36  INFO      [NAV] WP_BRAVO — dist=1730m | mode=AUTO | bat=69%
+01:59:38  INFO      [NAV] WP_BRAVO — dist=1687m | mode=AUTO | bat=69%
+01:59:40  INFO      [NAV] WP_BRAVO — dist=1645m | mode=AUTO | bat=68%
+01:59:43  INFO      [NAV] WP_BRAVO — dist=1602m | mode=AUTO | bat=68%
+01:59:45  INFO      [NAV] WP_BRAVO — dist=1560m | mode=MANUAL | bat=68%
+01:59:45  INFO      [NAV] Mode=MANUAL — re-setting AUTO
+01:59:45  INFO      Setting mode -> AUTO ...
+01:59:45  INFO      [OK] Mode: AUTO
+01:59:47  INFO      [NAV] WP_BRAVO — dist=1497m | mode=AUTO | bat=68%
+01:59:49  INFO      [NAV] WP_BRAVO — dist=1455m | mode=AUTO | bat=68%
+01:59:51  INFO      [NAV] WP_BRAVO — dist=1412m | mode=AUTO | bat=68%
+01:59:53  INFO      [NAV] WP_BRAVO — dist=1370m | mode=AUTO | bat=68%
+01:59:55  INFO      [NAV] WP_BRAVO — dist=1328m | mode=AUTO | bat=68%
+01:59:57  INFO      [NAV] WP_BRAVO — dist=1286m | mode=AUTO | bat=67%
+02:00:00  INFO      [NAV] WP_BRAVO — dist=1244m | mode=AUTO | bat=67%
+02:00:02  INFO      [NAV] WP_BRAVO — dist=1202m | mode=MANUAL | bat=67%
+02:00:02  INFO      [NAV] Mode=MANUAL — re-setting AUTO
+02:00:02  INFO      Setting mode -> AUTO ...
+02:00:02  INFO      [OK] Mode: AUTO
+02:00:04  INFO      [NAV] WP_BRAVO — dist=1160m | mode=MANUAL | bat=67%
+02:00:04  INFO      [NAV] Mode=MANUAL — re-setting AUTO
+02:00:04  INFO      Setting mode -> AUTO ...
+02:00:05  INFO      [OK] Mode: AUTO
+02:00:07  INFO      [NAV] WP_BRAVO — dist=1096m | mode=MANUAL | bat=67%
+02:00:07  INFO      [NAV] Mode=MANUAL — re-setting AUTO
+02:00:07  INFO      Setting mode -> AUTO ...
+02:00:08  INFO      [OK] Mode: AUTO
+02:00:10  INFO      [NAV] WP_BRAVO — dist=1033m | mode=MANUAL | bat=67%
+02:00:10  INFO      [NAV] Mode=MANUAL — re-setting AUTO
+02:00:10  INFO      Setting mode -> AUTO ...
+02:00:11  INFO      [OK] Mode: AUTO
+02:00:13  INFO      [NAV] WP_BRAVO — dist=970m | mode=MANUAL | bat=67%
+02:00:13  INFO      [NAV] Mode=MANUAL — re-setting AUTO
+02:00:13  INFO      Setting mode -> AUTO ...
+02:00:14  INFO      [OK] Mode: AUTO
+02:00:16  INFO      [NAV] WP_BRAVO — dist=907m | mode=MANUAL | bat=66%
+02:00:16  INFO      [NAV] Mode=MANUAL — re-setting AUTO
+02:00:16  INFO      Setting mode -> AUTO ...
+02:00:17  INFO      [OK] Mode: AUTO
+02:00:19  INFO      [NAV] WP_BRAVO — dist=844m | mode=MANUAL | bat=66%
+02:00:19  INFO      [NAV] Mode=MANUAL — re-setting AUTO
+02:00:19  INFO      Setting mode -> AUTO ...
+02:00:20  INFO      [OK] Mode: AUTO
+02:00:22  INFO      [NAV] WP_BRAVO — dist=780m | mode=MANUAL | bat=66%
+02:00:22  INFO      [NAV] Mode=MANUAL — re-setting AUTO
+02:00:22  INFO      Setting mode -> AUTO ...
+02:00:23  INFO      [OK] Mode: AUTO
+02:00:25  INFO      [NAV] WP_BRAVO — dist=696m | mode=AUTO | bat=66%
+02:00:27  INFO      [NAV] WP_BRAVO — dist=675m | mode=MANUAL | bat=66%
+02:00:27  INFO      [NAV] Mode=MANUAL — re-setting AUTO
+02:00:27  INFO      Setting mode -> AUTO ...
+02:00:29  INFO      [OK] Mode: AUTO
+02:00:31  INFO      [NAV] WP_BRAVO — dist=591m | mode=AUTO | bat=66%
+02:00:33  INFO      [NAV] WP_BRAVO — dist=549m | mode=AUTO | bat=65%
+02:00:35  INFO      [NAV] WP_BRAVO — dist=507m | mode=AUTO | bat=65%
+02:00:37  INFO      [NAV] WP_BRAVO — dist=465m | mode=AUTO | bat=65%
+02:00:39  INFO      [NAV] WP_BRAVO — dist=423m | mode=AUTO | bat=65%
+02:00:41  INFO      [NAV] WP_BRAVO — dist=394m | mode=MANUAL | bat=65%
+02:00:41  INFO      [NAV] Mode=MANUAL — re-setting AUTO
+02:00:41  INFO      Setting mode -> AUTO ...
+02:00:42  INFO      [OK] Mode: AUTO
+02:00:44  INFO      [NAV] WP_BRAVO — dist=361m | mode=AUTO | bat=65%
+02:00:46  INFO      [NAV] WP_BRAVO — dist=341m | mode=AUTO | bat=65%
+02:00:48  INFO      [NAV] WP_BRAVO — dist=319m | mode=AUTO | bat=65%
+02:00:50  INFO      [NAV] WP_BRAVO — dist=296m | mode=AUTO | bat=65%
+02:00:52  INFO      [NAV] WP_BRAVO — dist=271m | mode=AUTO | bat=65%
+02:00:54  INFO      [NAV] WP_BRAVO — dist=245m | mode=AUTO | bat=64%
+02:00:56  INFO      [NAV] WP_BRAVO — dist=219m | mode=AUTO | bat=64%
+02:00:58  INFO      [NAV] WP_BRAVO — dist=190m | mode=MANUAL | bat=64%
+02:00:58  INFO      [OK] WP_BRAVO reached (190m)
+02:00:58  INFO      Phase: RESUME → COMPLETE
+02:00:58  INFO      Setting mode -> RTL ...
+02:00:59  INFO      [OK] Mode: RTL
+02:00:59  INFO      [CMD] RTL — mission complete
+02:00:59  INFO      ============================================================
+02:00:59  INFO      MISSION SUMMARY:
+02:00:59  INFO        WP_ALPHA visited    : True
+02:00:59  INFO        MIDPOINT reached    : True
+02:00:59  INFO        Anomaly investigated: True
+02:00:59  INFO        WP_BRAVO reached    : True
+02:00:59  INFO        ReAct steps taken   : 3
+02:00:59  INFO      ============================================================

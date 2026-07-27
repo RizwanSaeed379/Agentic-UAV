@@ -7301,3 +7301,589 @@ Lessons learned: Ensure Critic LLM is reachable and prompt is well-formed
 12:29:21  INFO      Outcome: SUCCESS — anomaly investigated, WP_BRAVO reached
 12:29:21  INFO      Reflection written — run again for attempt 20
 12:29:21  INFO      ============================================================
+11:31:39  INFO      ============================================================
+11:31:39  INFO      PARADIGM C: Reflexion Agent — Wildfire Boundary Mapping
+11:31:39  INFO      Actor/Critic: qwen2.5:7b / llama3
+11:31:39  INFO      === ATTEMPT 20 ===
+11:31:39  INFO      Log    : E:\uav dependability lab 26\agentic UAV\reflexion_mission_log.txt
+11:31:39  INFO      Memory : E:\uav dependability lab 26\agentic UAV\reflexion_memory.txt
+11:31:39  INFO      ============================================================
+11:31:39  INFO      [MEMORY] Loaded 19 past attempt(s) from E:\uav dependability lab 26\agentic UAV\reflexion_memory.txt
+11:31:39  INFO      [MEMORY CONTENTS]
+
+=== ATTEMPT 1 — 2026-06-26 11:41:48 ===
+Outcome: SUCCESS — anomaly investigated, WP_BRAVO reached
+Failure reason: Battery consumption was significant and altitude gain minimal. Anomaly remained active.
+Commands issued: ['LOITER_TURNS']
+Lessons learned: Optimize loiter turns to minimize battery usage while ensuring adequate altitude for safety. Monitor anomalies closely and take corrective action if necessary.
+==========================================
+
+=== ATTEMPT 2 — 2026-06-26 12:26:41 ===
+Outcome: PARTIAL — anomaly skipped
+Failure reason: The UAV did not reach the target waypoint and experienced a significant drop in altitude, which could indicate issues with the navigation system. Additionally, the battery consumption was higher than expected.
+Commands issued: ['NAV_WAYPOINT']
+Lessons learned: Review the navigation algorithm to ensure accurate waypoint targeting. Monitor and optimize power usage to prevent unexpected drops in battery level. Consider implementing more robust anomaly handling strategies.
+==========================================
+
+=== ATTEMPT 3 — 2026-06-26 14:52:42 ===
+Outcome: PARTIAL — anomaly skipped
+Failure reason: The UAV did not reach the intended waypoint and experienced significant battery consumption.
+Commands issued: ['NAV_WAYPOINT']
+Lessons learned: Ensure the UAV has sufficient battery before attempting to navigate to waypoints. Optimize flight paths to minimize energy usage.
+==========================================
+
+=== ATTEMPT 4 — 2026-06-26 15:55:33 ===
+Outcome: SUCCESS — anomaly investigated, WP_BRAVO reached
+Failure reason: The UAV did not complete the loiter turns as expected, and the battery consumption was high.
+Commands issued: ['LOITER_TURNS']
+Lessons learned: Optimize the loiter parameters to ensure completion of the intended maneuvers. Monitor battery levels more closely to avoid unexpected drops during critical missions.
+==========================================
+
+=== ATTEMPT 5 — 2026-06-29 12:29:55 ===
+Outcome: SUCCESS — anomaly investigated, WP_BRAVO reached
+Failure reason: Battery consumption was significant and altitude gain minimal. Anomaly remained active.
+Commands issued: ['LOITER_TURNS']
+Lessons learned: Optimize flight parameters to reduce battery usage while ensuring effective altitude control. Monitor anomalies closely and address them promptly.
+==========================================
+
+=== ATTEMPT-BLOCK-START 1 — 2026-07-01 02:47:46 ===
+Outcome: SUCCESS — anomaly investigated, WP_BRAVO reached
+Failure reason: Critic LLM did not respond
+Commands issued: ['LOITER_TURNS']
+Lessons learned: Ensure Critic LLM is reachable and prompt is well-formed
+==========================================
+
+=== ATTEMPT 7 — 2026-07-02 13:29:19 ===
+Outcome: SUCCESS — anomaly investigated, WP_BRAVO reached
+Failure reason: Critic LLM did not respond
+Commands issued: ['LOITER_TURNS']
+Lessons learned: Ensure Critic LLM is reachable and prompt is well-formed
+==========================================
+
+=== ATTEMPT 8 — 2026-07-02 13:38:01 ===
+Outcome: PARTIAL — agent aborted at anomaly
+Failure reason: Critic LLM did not respond
+Commands issued: ['RTL']
+Lessons learned: Ensure Critic LLM is reachable and prompt is well-formed
+==========================================
+
+=== ATTEMPT 9 — 2026-07-02 13:45:58 ===
+Outcome: SUCCESS — anomaly investigated, WP_BRAVO reached
+Failure reason: NONE
+Commands issued: ['LOITER_TURNS']
+Lessons learned: Consider adjusting turn radius to conserve battery and maintain altitude.
+==========================================
+
+=== ATTEMPT 10 — 2026-07-03 01:21:04 ===
+Outcome: PARTIAL — anomaly skipped
+Failure reason: The UAV did not reach the intended waypoint and experienced a small altitude loss.
+Commands issued: ['NAV_WAYPOINT']
+Lessons learned: Ensure precise waypoint coordinates are set. Consider increasing the airspeed to compensate for wind resistance.
+==========================================
+
+=== ATTEMPT 11 — 2026-07-03 01:27:26 ===
+Outcome: SUCCESS — anomaly investigated, WP_BRAVO reached
+Failure reason: NONE
+Commands issued: ['LOITER_TURNS']
+Lessons learned: The mission continued without issues, but consider optimizing altitude and battery usage in future missions to ensure sustained performance.
+==========================================
+
+=== ATTEMPT 12 — 2026-07-03 17:23:10 ===
+Outcome: SUCCESS — anomaly investigated, WP_BRAVO reached
+Failure reason: NONE
+Commands issued: ['LOITER_TURNS']
+Lessons learned: Consider adjusting turn radius to minimize altitude changes and conserve battery.
+==========================================
+
+=== ATTEMPT 13 — 2026-07-03 17:35:54 ===
+Outcome: SUCCESS — anomaly investigated, WP_BRAVO reached
+Failure reason: NONE
+Commands issued: ['LOITER_TURNS']
+Lessons learned: Consider adjusting turn radius to conserve battery and maintain a steady heading.
+==========================================
+
+=== ATTEMPT 14 — 2026-07-03 17:47:29 ===
+Outcome: PARTIAL — anomaly skipped
+Failure reason: NONE
+Commands issued: ['NAV_WAYPOINT']
+Lessons learned: Consider adjusting course to align with WP_BRAVO, and monitor battery consumption.
+==========================================
+
+=== ATTEMPT 15 — 2026-07-03 18:04:02 ===
+Outcome: SUCCESS — anomaly investigated, WP_BRAVO reached
+Failure reason: anomaly response not fully resolved
+Commands issued: ['LOITER_TURNS']
+Lessons learned: re-evaluate anomaly response strategy, consider alternative modes to RTL
+==========================================
+
+=== ATTEMPT 16 — 2026-07-03 18:20:27 ===
+Outcome: PARTIAL — agent aborted at anomaly
+Failure reason: Critic LLM did not respond
+Commands issued: ['RTL']
+Lessons learned: Ensure Critic LLM is reachable and prompt is well-formed
+==========================================
+
+=== ATTEMPT 17 — 2026-07-06 12:19:07 ===
+Outcome: PARTIAL — agent aborted at anomaly
+Failure reason: Critic LLM did not respond
+Commands issued: ['RTL']
+Lessons learned: Ensure Critic LLM is reachable and prompt is well-formed
+==========================================
+
+=== ATTEMPT 18 — 2026-07-06 12:21:37 ===
+Outcome: PARTIAL — agent aborted at anomaly
+Failure reason: Critic LLM did not respond
+Commands issued: ['RTL']
+Lessons learned: Ensure Critic LLM is reachable and prompt is well-formed
+==========================================
+
+=== ATTEMPT 19 — 2026-07-06 12:29:21 ===
+Outcome: SUCCESS — anomaly investigated, WP_BRAVO reached
+Failure reason: NONE
+Commands issued: ['LOITER_TURNS']
+Lessons learned: Consider adjusting turn radius to conserve battery and maintain a steady altitude.
+==========================================
+
+11:31:39  INFO      Auto-detecting ArduPlane SITL ...
+11:31:39  INFO        Trying tcp:127.0.0.1:5762 ...
+11:31:39  INFO      [OK] Connected: tcp:127.0.0.1:5762 | sysid=1 | Fixed-wing
+11:31:43  INFO      Home relocated to Rawalpindi
+11:31:43  INFO      [OK] Telemetry thread running
+11:31:44  INFO      Waiting for GPS lock (need 6 sats) ...
+11:31:44  DEBUG       GPS sats: 10
+11:31:44  INFO      [OK] GPS lock — 10 satellites
+11:31:44  INFO      Uploading 6 mission items ...
+11:31:44  DEBUG       Sending item 0 (cmd=16)
+11:31:44  DEBUG       Sending item 1 (cmd=22)
+11:31:44  DEBUG       Sending item 2 (cmd=16)
+11:31:44  DEBUG       Sending item 3 (cmd=16)
+11:31:44  DEBUG       Sending item 4 (cmd=16)
+11:31:44  DEBUG       Sending item 5 (cmd=20)
+11:31:44  INFO      [OK] Mission accepted (6 items)
+11:31:45  INFO      Setting mode -> AUTO (id=10) ...
+11:31:46  INFO      [OK] Mode: AUTO
+11:31:46  INFO      Arming ...
+11:31:46  INFO      [OK] Armed
+11:31:46  INFO      === PHASE 1: Flying to WP_ALPHA ===
+11:31:46  INFO      [NAV] Uploading mini-mission to WP_ALPHA (1 waypoints)
+11:31:46  INFO      Uploading 2 mission items ...
+11:31:46  DEBUG       Sending item 0 (cmd=16)
+11:31:46  DEBUG       Sending item 1 (cmd=16)
+11:31:46  INFO      [OK] Mission accepted (2 items)
+11:31:46  INFO      Setting mode -> AUTO (id=10) ...
+11:31:47  INFO      [OK] Mode: AUTO
+11:31:47  INFO      [NAV] WP_ALPHA — wp_seq=1/1 | alt=681m | bat=72%
+11:31:47  INFO      [NAV] wp_seq=1 but dist=2231m — still flying
+11:31:52  INFO      [NAV] WP_ALPHA — wp_seq=1/1 | alt=684m | bat=72%
+11:31:52  INFO      [NAV] wp_seq=1 but dist=2070m — still flying
+11:31:57  INFO      [NAV] WP_ALPHA — wp_seq=1/1 | alt=679m | bat=71%
+11:31:57  INFO      [NAV] wp_seq=1 but dist=1963m — still flying
+11:32:02  INFO      [NAV] WP_ALPHA — wp_seq=1/1 | alt=674m | bat=71%
+11:32:02  INFO      [NAV] wp_seq=1 but dist=1858m — still flying
+11:32:07  INFO      [NAV] WP_ALPHA — wp_seq=1/1 | alt=670m | bat=71%
+11:32:07  INFO      [NAV] wp_seq=1 but dist=1753m — still flying
+11:32:12  INFO      [NAV] WP_ALPHA — wp_seq=1/1 | alt=667m | bat=70%
+11:32:12  INFO      [NAV] wp_seq=1 but dist=1648m — still flying
+11:32:17  INFO      [NAV] WP_ALPHA — wp_seq=1/1 | alt=663m | bat=70%
+11:32:17  INFO      [NAV] wp_seq=1 but dist=1542m — still flying
+11:32:22  INFO      [NAV] WP_ALPHA — wp_seq=1/1 | alt=660m | bat=70%
+11:32:22  INFO      [NAV] wp_seq=1 but dist=1436m — still flying
+11:32:27  INFO      [NAV] WP_ALPHA — wp_seq=1/1 | alt=657m | bat=70%
+11:32:27  INFO      [NAV] wp_seq=1 but dist=1330m — still flying
+11:32:32  INFO      [NAV] WP_ALPHA — wp_seq=1/1 | alt=653m | bat=69%
+11:32:32  INFO      [NAV] wp_seq=1 but dist=1224m — still flying
+11:32:37  INFO      [NAV] WP_ALPHA — wp_seq=1/1 | alt=650m | bat=69%
+11:32:37  INFO      [NAV] wp_seq=1 but dist=1118m — still flying
+11:32:42  INFO      [NAV] WP_ALPHA — wp_seq=1/1 | alt=647m | bat=69%
+11:32:42  INFO      [NAV] wp_seq=1 but dist=1012m — still flying
+11:32:47  INFO      [NAV] WP_ALPHA — wp_seq=1/1 | alt=644m | bat=68%
+11:32:47  INFO      [NAV] wp_seq=1 but dist=906m — still flying
+11:32:52  INFO      [NAV] WP_ALPHA — wp_seq=1/1 | alt=640m | bat=68%
+11:32:52  INFO      [NAV] wp_seq=1 but dist=800m — still flying
+11:32:57  INFO      [NAV] WP_ALPHA — wp_seq=1/1 | alt=637m | bat=68%
+11:32:57  INFO      [NAV] wp_seq=1 but dist=694m — still flying
+11:33:02  INFO      [NAV] WP_ALPHA — wp_seq=1/1 | alt=634m | bat=68%
+11:33:02  INFO      [NAV] wp_seq=1 but dist=588m — still flying
+11:33:07  INFO      [NAV] WP_ALPHA — wp_seq=1/1 | alt=631m | bat=67%
+11:33:07  INFO      [NAV] wp_seq=1 but dist=482m — still flying
+11:33:12  INFO      [NAV] WP_ALPHA — wp_seq=1/1 | alt=627m | bat=67%
+11:33:12  INFO      [NAV] wp_seq=1 but dist=377m — still flying
+11:33:17  INFO      [NAV] WP_ALPHA — wp_seq=1/1 | alt=624m | bat=67%
+11:33:17  INFO      [NAV] wp_seq=1 but dist=271m — still flying
+11:33:22  INFO      [NAV] WP_ALPHA — wp_seq=1/1 | alt=621m | bat=66%
+11:33:22  INFO      [NAV] Reached WP_ALPHA (wp_seq=165 dist=1m)
+11:33:22  INFO      === PHASE 2: Flying to MIDPOINT — anomaly pre-triggered ===
+11:33:22  INFO      [ANOMALY] Triggered before MIDPOINT approach
+11:33:22  INFO      [NAV] Uploading mini-mission to MIDPOINT (1 waypoints)
+11:33:22  INFO      Uploading 2 mission items ...
+11:33:22  DEBUG       Sending item 0 (cmd=16)
+11:33:22  DEBUG       Sending item 1 (cmd=16)
+11:33:22  INFO      [OK] Mission accepted (2 items)
+11:33:23  INFO      Setting mode -> AUTO (id=10) ...
+11:33:24  DEBUG       Waiting for AUTO, currently MANUAL
+11:33:24  INFO      [OK] Mode: AUTO
+11:33:24  INFO      [NAV] MIDPOINT — wp_seq=1/1 | alt=621m | bat=66%
+11:33:24  INFO      [NAV] wp_seq=1 but dist=1121m — still flying
+11:33:29  INFO      [NAV] MIDPOINT — wp_seq=1/1 | alt=616m | bat=65%
+11:33:29  INFO      [NAV] wp_seq=1 but dist=1161m — still flying
+11:33:34  INFO      [NAV] MIDPOINT — wp_seq=1/1 | alt=614m | bat=64%
+11:33:34  INFO      [NAV] wp_seq=1 but dist=1035m — still flying
+11:33:39  INFO      [NAV] MIDPOINT — wp_seq=1/1 | alt=613m | bat=64%
+11:33:39  INFO      [NAV] wp_seq=1 but dist=921m — still flying
+11:33:44  INFO      [NAV] MIDPOINT — wp_seq=1/1 | alt=614m | bat=64%
+11:33:44  INFO      [NAV] wp_seq=1 but dist=810m — still flying
+11:33:49  INFO      [NAV] MIDPOINT — wp_seq=1/1 | alt=614m | bat=63%
+11:33:49  INFO      [NAV] wp_seq=1 but dist=701m — still flying
+11:33:54  INFO      [NAV] MIDPOINT — wp_seq=1/1 | alt=614m | bat=63%
+11:33:54  INFO      [NAV] wp_seq=1 but dist=593m — still flying
+11:33:59  INFO      [NAV] MIDPOINT — wp_seq=1/1 | alt=614m | bat=63%
+11:33:59  INFO      [NAV] wp_seq=1 but dist=484m — still flying
+11:34:04  INFO      [NAV] MIDPOINT — wp_seq=1/1 | alt=614m | bat=62%
+11:34:04  INFO      [NAV] wp_seq=1 but dist=376m — still flying
+11:34:09  INFO      [NAV] MIDPOINT — wp_seq=1/1 | alt=614m | bat=62%
+11:34:09  INFO      [NAV] wp_seq=1 but dist=268m — still flying
+11:34:14  INFO      [NAV] MIDPOINT — wp_seq=1/1 | alt=614m | bat=61%
+11:34:14  INFO      [NAV] Reached MIDPOINT (wp_seq=159 dist=1m)
+11:34:14  INFO      === PHASE 3: LLM DECISION — anomaly response ===
+11:34:14  INFO      [ACTOR] Calling qwen2.5:7b for anomaly decision ...
+11:34:24  INFO      [ACTOR] Flight command: LOITER_TURNS {'lat': 33.7134, 'lon': 72.9812, 'alt': 30.0, 'turns': 2, 'radius': 80}
+11:34:24  INFO      [ACTOR] Decision: LOITER_TURNS {'lat': 33.7134, 'lon': 72.9812, 'alt': 30.0, 'turns': 2, 'radius': 80}
+11:34:24  INFO      Executing: LOITER_TURNS {'lat': 33.7134, 'lon': 72.9812, 'alt': 30.0, 'turns': 2, 'radius': 80}
+11:34:24  INFO      Uploading LOITER_TURNS+DO_JUMP: (33.71340, 72.98120, 30m) turns=2 r=80m
+11:34:24  INFO      Uploading 3 mission items ...
+11:34:24  DEBUG       Sending item 0 (cmd=16)
+11:34:24  DEBUG       Sending item 1 (cmd=18)
+11:34:24  DEBUG       Sending item 2 (cmd=177)
+11:34:24  INFO      [OK] Mission accepted (3 items)
+11:34:25  INFO      Setting mode -> AUTO (id=10) ...
+11:34:25  INFO      [OK] Mode: AUTO
+11:34:25  INFO      [CMD] LOITER_TURNS → AUTO at (33.71340, 72.98120) turns=2 r=80m
+11:34:25  INFO      === PHASE 4a: Investigating anomaly (~67s loiter) then WP_BRAVO ===
+11:35:32  INFO      [NAV] Uploading mini-mission to WP_BRAVO (1 waypoints)
+11:35:32  INFO      Uploading 2 mission items ...
+11:35:32  DEBUG       Sending item 0 (cmd=16)
+11:35:32  DEBUG       Sending item 1 (cmd=16)
+11:35:32  INFO      [OK] Mission accepted (2 items)
+11:35:33  INFO      Setting mode -> AUTO (id=10) ...
+11:35:34  DEBUG       Waiting for AUTO, currently MANUAL
+11:35:34  INFO      [OK] Mode: AUTO
+11:35:34  INFO      [NAV] WP_BRAVO — wp_seq=1/1 | alt=614m | bat=49%
+11:35:34  INFO      [NAV] wp_seq=1 but dist=1367m — still flying
+11:35:39  INFO      [NAV] WP_BRAVO — wp_seq=1/1 | alt=614m | bat=48%
+11:35:39  INFO      [NAV] wp_seq=1 but dist=1210m — still flying
+11:35:44  INFO      [NAV] WP_BRAVO — wp_seq=1/1 | alt=614m | bat=48%
+11:35:44  INFO      [NAV] wp_seq=1 but dist=1098m — still flying
+11:35:49  INFO      [NAV] WP_BRAVO — wp_seq=1/1 | alt=614m | bat=47%
+11:35:49  INFO      [NAV] wp_seq=1 but dist=989m — still flying
+11:35:54  INFO      [NAV] WP_BRAVO — wp_seq=1/1 | alt=614m | bat=47%
+11:35:54  INFO      [NAV] wp_seq=1 but dist=881m — still flying
+11:35:59  INFO      [NAV] WP_BRAVO — wp_seq=1/1 | alt=614m | bat=47%
+11:35:59  INFO      [NAV] wp_seq=1 but dist=774m — still flying
+11:36:04  INFO      [NAV] WP_BRAVO — wp_seq=1/1 | alt=614m | bat=46%
+11:36:04  INFO      [NAV] wp_seq=1 but dist=666m — still flying
+11:36:09  INFO      [NAV] WP_BRAVO — wp_seq=1/1 | alt=614m | bat=46%
+11:36:09  INFO      [NAV] wp_seq=1 but dist=558m — still flying
+11:36:14  INFO      [NAV] WP_BRAVO — wp_seq=1/1 | alt=614m | bat=46%
+11:36:14  INFO      [NAV] wp_seq=1 but dist=450m — still flying
+11:36:19  INFO      [NAV] WP_BRAVO — wp_seq=1/1 | alt=617m | bat=45%
+11:36:19  INFO      [NAV] wp_seq=1 but dist=350m — still flying
+11:36:24  INFO      [NAV] WP_BRAVO — wp_seq=1/1 | alt=627m | bat=45%
+11:36:24  INFO      [NAV] wp_seq=1 but dist=295m — still flying
+11:36:29  INFO      [NAV] WP_BRAVO — wp_seq=1/1 | alt=641m | bat=45%
+11:36:29  INFO      [NAV] wp_seq=1 but dist=241m — still flying
+11:36:34  INFO      [NAV] WP_BRAVO — wp_seq=1/1 | alt=654m | bat=44%
+11:36:34  INFO      [NAV] Reached WP_BRAVO (wp_seq=175 dist=1m)
+11:36:34  INFO      [CRITIC] Evaluating anomaly decision ...
+11:36:34  INFO      [CRITIC] Evaluating action: LOITER_TURNS ...
+11:36:40  INFO      [CRITIC] outcome=PARTIAL  severity=MEDIUM lesson=Consider adjusting turn radius to conserve battery and maintain steady altitude.
+11:36:40  INFO      [CRITIC] outcome=PARTIAL severity=MEDIUM
+11:36:40  INFO      [CRITIC] lesson: Consider adjusting turn radius to conserve battery and maintain steady altitude.
+11:36:40  INFO      === PHASE 5: RTL ===
+11:36:40  INFO      Setting mode -> RTL (id=11) ...
+11:36:40  INFO      [OK] Mode: RTL
+11:36:40  INFO      [CMD] RTL — mission complete
+11:36:40  INFO      [MEMORY] Reflection written for attempt 20 -> E:\uav dependability lab 26\agentic UAV\reflexion_memory.txt
+11:36:40  INFO      ============================================================
+11:36:40  INFO      Reflexion attempt 20 complete
+11:36:40  INFO      Outcome: SUCCESS — anomaly investigated, WP_BRAVO reached
+11:36:40  INFO      Reflection written — run again for attempt 21
+11:36:40  INFO      ============================================================
+02:15:16  INFO      ============================================================
+02:15:16  INFO      PARADIGM C: Reflexion Agent — Wildfire Boundary Mapping
+02:15:16  INFO      Actor/Critic: qwen2.5:7b / llama3
+02:15:16  INFO      === ATTEMPT 21 ===
+02:15:16  INFO      Log    : E:\uav dependability lab 26\agentic UAV\reflexion_mission_log.txt
+02:15:16  INFO      Memory : E:\uav dependability lab 26\agentic UAV\reflexion_memory.txt
+02:15:16  INFO      ============================================================
+02:15:16  INFO      [MEMORY] Loaded 20 past attempt(s) from E:\uav dependability lab 26\agentic UAV\reflexion_memory.txt
+02:15:16  INFO      [MEMORY CONTENTS]
+
+=== ATTEMPT 1 — 2026-06-26 11:41:48 ===
+Outcome: SUCCESS — anomaly investigated, WP_BRAVO reached
+Failure reason: Battery consumption was significant and altitude gain minimal. Anomaly remained active.
+Commands issued: ['LOITER_TURNS']
+Lessons learned: Optimize loiter turns to minimize battery usage while ensuring adequate altitude for safety. Monitor anomalies closely and take corrective action if necessary.
+==========================================
+
+=== ATTEMPT 2 — 2026-06-26 12:26:41 ===
+Outcome: PARTIAL — anomaly skipped
+Failure reason: The UAV did not reach the target waypoint and experienced a significant drop in altitude, which could indicate issues with the navigation system. Additionally, the battery consumption was higher than expected.
+Commands issued: ['NAV_WAYPOINT']
+Lessons learned: Review the navigation algorithm to ensure accurate waypoint targeting. Monitor and optimize power usage to prevent unexpected drops in battery level. Consider implementing more robust anomaly handling strategies.
+==========================================
+
+=== ATTEMPT 3 — 2026-06-26 14:52:42 ===
+Outcome: PARTIAL — anomaly skipped
+Failure reason: The UAV did not reach the intended waypoint and experienced significant battery consumption.
+Commands issued: ['NAV_WAYPOINT']
+Lessons learned: Ensure the UAV has sufficient battery before attempting to navigate to waypoints. Optimize flight paths to minimize energy usage.
+==========================================
+
+=== ATTEMPT 4 — 2026-06-26 15:55:33 ===
+Outcome: SUCCESS — anomaly investigated, WP_BRAVO reached
+Failure reason: The UAV did not complete the loiter turns as expected, and the battery consumption was high.
+Commands issued: ['LOITER_TURNS']
+Lessons learned: Optimize the loiter parameters to ensure completion of the intended maneuvers. Monitor battery levels more closely to avoid unexpected drops during critical missions.
+==========================================
+
+=== ATTEMPT 5 — 2026-06-29 12:29:55 ===
+Outcome: SUCCESS — anomaly investigated, WP_BRAVO reached
+Failure reason: Battery consumption was significant and altitude gain minimal. Anomaly remained active.
+Commands issued: ['LOITER_TURNS']
+Lessons learned: Optimize flight parameters to reduce battery usage while ensuring effective altitude control. Monitor anomalies closely and address them promptly.
+==========================================
+
+=== ATTEMPT-BLOCK-START 1 — 2026-07-01 02:47:46 ===
+Outcome: SUCCESS — anomaly investigated, WP_BRAVO reached
+Failure reason: Critic LLM did not respond
+Commands issued: ['LOITER_TURNS']
+Lessons learned: Ensure Critic LLM is reachable and prompt is well-formed
+==========================================
+
+=== ATTEMPT 7 — 2026-07-02 13:29:19 ===
+Outcome: SUCCESS — anomaly investigated, WP_BRAVO reached
+Failure reason: Critic LLM did not respond
+Commands issued: ['LOITER_TURNS']
+Lessons learned: Ensure Critic LLM is reachable and prompt is well-formed
+==========================================
+
+=== ATTEMPT 8 — 2026-07-02 13:38:01 ===
+Outcome: PARTIAL — agent aborted at anomaly
+Failure reason: Critic LLM did not respond
+Commands issued: ['RTL']
+Lessons learned: Ensure Critic LLM is reachable and prompt is well-formed
+==========================================
+
+=== ATTEMPT 9 — 2026-07-02 13:45:58 ===
+Outcome: SUCCESS — anomaly investigated, WP_BRAVO reached
+Failure reason: NONE
+Commands issued: ['LOITER_TURNS']
+Lessons learned: Consider adjusting turn radius to conserve battery and maintain altitude.
+==========================================
+
+=== ATTEMPT 10 — 2026-07-03 01:21:04 ===
+Outcome: PARTIAL — anomaly skipped
+Failure reason: The UAV did not reach the intended waypoint and experienced a small altitude loss.
+Commands issued: ['NAV_WAYPOINT']
+Lessons learned: Ensure precise waypoint coordinates are set. Consider increasing the airspeed to compensate for wind resistance.
+==========================================
+
+=== ATTEMPT 11 — 2026-07-03 01:27:26 ===
+Outcome: SUCCESS — anomaly investigated, WP_BRAVO reached
+Failure reason: NONE
+Commands issued: ['LOITER_TURNS']
+Lessons learned: The mission continued without issues, but consider optimizing altitude and battery usage in future missions to ensure sustained performance.
+==========================================
+
+=== ATTEMPT 12 — 2026-07-03 17:23:10 ===
+Outcome: SUCCESS — anomaly investigated, WP_BRAVO reached
+Failure reason: NONE
+Commands issued: ['LOITER_TURNS']
+Lessons learned: Consider adjusting turn radius to minimize altitude changes and conserve battery.
+==========================================
+
+=== ATTEMPT 13 — 2026-07-03 17:35:54 ===
+Outcome: SUCCESS — anomaly investigated, WP_BRAVO reached
+Failure reason: NONE
+Commands issued: ['LOITER_TURNS']
+Lessons learned: Consider adjusting turn radius to conserve battery and maintain a steady heading.
+==========================================
+
+=== ATTEMPT 14 — 2026-07-03 17:47:29 ===
+Outcome: PARTIAL — anomaly skipped
+Failure reason: NONE
+Commands issued: ['NAV_WAYPOINT']
+Lessons learned: Consider adjusting course to align with WP_BRAVO, and monitor battery consumption.
+==========================================
+
+=== ATTEMPT 15 — 2026-07-03 18:04:02 ===
+Outcome: SUCCESS — anomaly investigated, WP_BRAVO reached
+Failure reason: anomaly response not fully resolved
+Commands issued: ['LOITER_TURNS']
+Lessons learned: re-evaluate anomaly response strategy, consider alternative modes to RTL
+==========================================
+
+=== ATTEMPT 16 — 2026-07-03 18:20:27 ===
+Outcome: PARTIAL — agent aborted at anomaly
+Failure reason: Critic LLM did not respond
+Commands issued: ['RTL']
+Lessons learned: Ensure Critic LLM is reachable and prompt is well-formed
+==========================================
+
+=== ATTEMPT 17 — 2026-07-06 12:19:07 ===
+Outcome: PARTIAL — agent aborted at anomaly
+Failure reason: Critic LLM did not respond
+Commands issued: ['RTL']
+Lessons learned: Ensure Critic LLM is reachable and prompt is well-formed
+==========================================
+
+=== ATTEMPT 18 — 2026-07-06 12:21:37 ===
+Outcome: PARTIAL — agent aborted at anomaly
+Failure reason: Critic LLM did not respond
+Commands issued: ['RTL']
+Lessons learned: Ensure Critic LLM is reachable and prompt is well-formed
+==========================================
+
+=== ATTEMPT 19 — 2026-07-06 12:29:21 ===
+Outcome: SUCCESS — anomaly investigated, WP_BRAVO reached
+Failure reason: NONE
+Commands issued: ['LOITER_TURNS']
+Lessons learned: Consider adjusting turn radius to conserve battery and maintain a steady altitude.
+==========================================
+
+=== ATTEMPT 20 — 2026-07-15 11:36:40 ===
+Outcome: SUCCESS — anomaly investigated, WP_BRAVO reached
+Failure reason: NONE
+Commands issued: ['LOITER_TURNS']
+Lessons learned: Consider adjusting turn radius to conserve battery and maintain steady altitude.
+==========================================
+
+02:15:16  INFO      Auto-detecting ArduPlane SITL ...
+02:15:16  INFO        Trying tcp:127.0.0.1:5762 ...
+02:15:16  INFO      [OK] Connected: tcp:127.0.0.1:5762 | sysid=1 | Fixed-wing
+02:15:20  INFO      Home relocated to Rawalpindi
+02:15:20  INFO      [OK] Telemetry thread running
+02:15:21  INFO      Waiting for GPS lock (need 6 sats) ...
+02:15:21  DEBUG       GPS sats: 10
+02:15:21  INFO      [OK] GPS lock — 10 satellites
+02:15:21  INFO      Uploading 6 mission items ...
+02:15:22  DEBUG       Sending item 0 (cmd=16)
+02:15:22  DEBUG       Sending item 1 (cmd=22)
+02:15:22  DEBUG       Sending item 2 (cmd=16)
+02:15:22  DEBUG       Sending item 3 (cmd=16)
+02:15:22  DEBUG       Sending item 4 (cmd=16)
+02:15:22  DEBUG       Sending item 5 (cmd=20)
+02:15:22  INFO      [OK] Mission accepted (6 items)
+02:15:23  INFO      Setting mode -> AUTO (id=10) ...
+02:15:23  INFO      [OK] Mode: AUTO
+02:15:23  INFO      Arming ...
+02:15:35  INFO      [OK] Armed
+02:15:35  INFO      === PHASE 1: Flying to WP_ALPHA ===
+02:15:35  INFO      [NAV] Uploading mini-mission to WP_ALPHA (1 waypoints)
+02:15:35  INFO      Uploading 2 mission items ...
+02:15:36  DEBUG       Sending item 0 (cmd=16)
+02:15:36  DEBUG       Sending item 1 (cmd=16)
+02:15:36  INFO      [OK] Mission accepted (2 items)
+02:15:36  INFO      Setting mode -> AUTO (id=10) ...
+02:15:36  INFO      [OK] Mode: AUTO
+02:15:36  INFO      [NAV] WP_ALPHA — wp_seq=1/1 | alt=665m | bat=39%
+02:15:36  INFO      [NAV] Reached WP_ALPHA (wp_seq=50 dist=1m)
+02:15:36  INFO      === PHASE 2: Flying to MIDPOINT — anomaly pre-triggered ===
+02:15:36  INFO      [ANOMALY] Triggered before MIDPOINT approach
+02:15:36  INFO      [NAV] Uploading mini-mission to MIDPOINT (1 waypoints)
+02:15:36  INFO      Uploading 2 mission items ...
+02:15:37  DEBUG       Sending item 0 (cmd=16)
+02:15:37  DEBUG       Sending item 1 (cmd=16)
+02:15:37  INFO      [OK] Mission accepted (2 items)
+02:15:37  INFO      Setting mode -> AUTO (id=10) ...
+02:15:37  INFO      [OK] Mode: AUTO
+02:15:37  INFO      [NAV] MIDPOINT — wp_seq=1/1 | alt=665m | bat=39%
+02:15:37  INFO      [NAV] wp_seq=1 but dist=1238m — still flying
+02:15:42  INFO      [NAV] MIDPOINT — wp_seq=1/1 | alt=658m | bat=37%
+02:15:42  INFO      [NAV] wp_seq=1 but dist=1371m — still flying
+02:15:47  INFO      [NAV] MIDPOINT — wp_seq=1/1 | alt=657m | bat=36%
+02:15:47  INFO      [NAV] wp_seq=1 but dist=1260m — still flying
+02:15:52  INFO      [NAV] MIDPOINT — wp_seq=1/1 | alt=653m | bat=36%
+02:15:52  INFO      [NAV] wp_seq=1 but dist=1141m — still flying
+02:15:57  INFO      [NAV] MIDPOINT — wp_seq=1/1 | alt=650m | bat=35%
+02:15:57  INFO      [NAV] wp_seq=1 but dist=1032m — still flying
+02:16:02  INFO      [NAV] MIDPOINT — wp_seq=1/1 | alt=647m | bat=35%
+02:16:02  INFO      [NAV] wp_seq=1 but dist=926m — still flying
+02:16:07  INFO      [NAV] MIDPOINT — wp_seq=1/1 | alt=644m | bat=35%
+02:16:07  INFO      [NAV] wp_seq=1 but dist=821m — still flying
+02:16:12  INFO      [NAV] MIDPOINT — wp_seq=1/1 | alt=640m | bat=35%
+02:16:12  INFO      [NAV] wp_seq=1 but dist=717m — still flying
+02:16:17  INFO      [NAV] MIDPOINT — wp_seq=1/1 | alt=637m | bat=34%
+02:16:17  INFO      [NAV] wp_seq=1 but dist=612m — still flying
+02:16:22  INFO      [NAV] MIDPOINT — wp_seq=1/1 | alt=633m | bat=34%
+02:16:22  INFO      [NAV] wp_seq=1 but dist=508m — still flying
+02:16:27  INFO      [NAV] MIDPOINT — wp_seq=1/1 | alt=630m | bat=34%
+02:16:27  INFO      [NAV] wp_seq=1 but dist=403m — still flying
+02:16:32  INFO      [NAV] MIDPOINT — wp_seq=1/1 | alt=626m | bat=33%
+02:16:32  INFO      [NAV] wp_seq=1 but dist=298m — still flying
+02:16:37  INFO      [NAV] MIDPOINT — wp_seq=1/1 | alt=623m | bat=33%
+02:16:37  INFO      [NAV] Reached MIDPOINT (wp_seq=193 dist=1m)
+02:16:37  INFO      === PHASE 3: LLM DECISION — anomaly response ===
+02:16:37  INFO      [ACTOR] Calling qwen2.5:7b for anomaly decision ...
+02:16:49  INFO      [ACTOR] Flight command: LOITER_TURNS {'lat': 33.7134, 'lon': 72.9812, 'alt': 30.0, 'turns': 2, 'radius': 80}
+02:16:49  INFO      [ACTOR] Decision: LOITER_TURNS {'lat': 33.7134, 'lon': 72.9812, 'alt': 30.0, 'turns': 2, 'radius': 80}
+02:16:49  INFO      Executing: LOITER_TURNS {'lat': 33.7134, 'lon': 72.9812, 'alt': 30.0, 'turns': 2, 'radius': 80}
+02:16:49  INFO      Uploading LOITER_TURNS: (33.71340, 72.98120, 30m) turns=2 r=80m
+02:16:49  INFO      Uploading 2 mission items ...
+02:16:49  DEBUG       Sending item 0 (cmd=16)
+02:16:49  DEBUG       Sending item 1 (cmd=18)
+02:16:49  INFO      [OK] Mission accepted (2 items)
+02:16:49  INFO      Setting mode -> AUTO (id=10) ...
+02:16:50  INFO      [OK] Mode: AUTO
+02:16:50  INFO      [CMD] LOITER_TURNS → AUTO at (33.71340, 72.98120) turns=2 r=80m
+02:16:50  INFO      === PHASE 4a: Investigating anomaly (~67s loiter) then WP_BRAVO ===
+02:17:57  INFO      [NAV] Uploading mini-mission to WP_BRAVO (1 waypoints)
+02:17:57  INFO      Uploading 2 mission items ...
+02:17:57  DEBUG       Sending item 0 (cmd=16)
+02:17:57  DEBUG       Sending item 1 (cmd=16)
+02:17:57  INFO      [OK] Mission accepted (2 items)
+02:17:57  INFO      Setting mode -> AUTO (id=10) ...
+02:17:58  INFO      [OK] Mode: AUTO
+02:17:58  INFO      [NAV] WP_BRAVO — wp_seq=1/1 | alt=630m | bat=20%
+02:17:58  INFO      [NAV] wp_seq=1 but dist=1479m — still flying
+02:18:03  INFO      [NAV] WP_BRAVO — wp_seq=1/1 | alt=633m | bat=19%
+02:18:03  INFO      [NAV] wp_seq=1 but dist=1563m — still flying
+02:18:08  INFO      [NAV] WP_BRAVO — wp_seq=1/1 | alt=631m | bat=18%
+02:18:08  INFO      [NAV] wp_seq=1 but dist=1442m — still flying
+02:18:13  INFO      [NAV] WP_BRAVO — wp_seq=1/1 | alt=630m | bat=17%
+02:18:13  INFO      [NAV] wp_seq=1 but dist=1323m — still flying
+02:18:18  INFO      [NAV] WP_BRAVO — wp_seq=1/1 | alt=629m | bat=17%
+02:18:18  INFO      [NAV] wp_seq=1 but dist=1212m — still flying
+02:18:23  INFO      [NAV] WP_BRAVO — wp_seq=1/1 | alt=628m | bat=17%
+02:18:23  INFO      [NAV] wp_seq=1 but dist=1104m — still flying
+02:18:28  INFO      [NAV] WP_BRAVO — wp_seq=1/1 | alt=627m | bat=16%
+02:18:28  INFO      [NAV] wp_seq=1 but dist=996m — still flying
+02:18:33  INFO      [NAV] WP_BRAVO — wp_seq=1/1 | alt=626m | bat=16%
+02:18:33  INFO      [NAV] wp_seq=1 but dist=890m — still flying
+02:18:38  INFO      [NAV] WP_BRAVO — wp_seq=1/1 | alt=624m | bat=16%
+02:18:38  INFO      [NAV] wp_seq=1 but dist=783m — still flying
+02:18:43  INFO      [NAV] WP_BRAVO — wp_seq=1/1 | alt=623m | bat=15%
+02:18:43  INFO      [NAV] wp_seq=1 but dist=676m — still flying
+02:18:48  INFO      [NAV] WP_BRAVO — wp_seq=1/1 | alt=622m | bat=15%
+02:18:48  INFO      [NAV] wp_seq=1 but dist=569m — still flying
+02:18:53  INFO      [NAV] WP_BRAVO — wp_seq=1/1 | alt=620m | bat=15%
+02:18:53  INFO      [NAV] wp_seq=1 but dist=462m — still flying
+02:18:58  INFO      [NAV] WP_BRAVO — wp_seq=1/1 | alt=626m | bat=14%
+02:18:58  INFO      [NAV] wp_seq=1 but dist=390m — still flying
+02:18:58  WARNING   [NAV] Battery critical — aborting navigation to WP_BRAVO
+02:18:58  INFO      [CRITIC] Evaluating anomaly decision ...
+02:18:58  INFO      [CRITIC] Evaluating action: LOITER_TURNS ...
+02:19:04  INFO      [CRITIC] outcome=PARTIAL  severity=MEDIUM lesson=Consider adjusting turn radius to conserve battery and maintain altitude.
+02:19:04  INFO      [CRITIC] outcome=PARTIAL severity=MEDIUM
+02:19:04  INFO      [CRITIC] lesson: Consider adjusting turn radius to conserve battery and maintain altitude.
+02:19:04  INFO      === PHASE 5: RTL ===
+02:19:04  INFO      Setting mode -> RTL (id=11) ...
+02:19:05  DEBUG       Waiting for RTL, currently MANUAL
+02:19:05  INFO      [OK] Mode: RTL
+02:19:05  INFO      [CMD] RTL — mission complete
+02:19:05  INFO      [MEMORY] Reflection written for attempt 21 -> E:\uav dependability lab 26\agentic UAV\reflexion_memory.txt
+02:19:05  INFO      ============================================================
+02:19:05  INFO      Reflexion attempt 21 complete
+02:19:05  INFO      Outcome: SUCCESS — anomaly investigated, WP_BRAVO reached
+02:19:05  INFO      Reflection written — run again for attempt 22
+02:19:05  INFO      ============================================================
