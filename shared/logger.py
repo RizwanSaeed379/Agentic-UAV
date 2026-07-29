@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 
 LOG_FILE = os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-    'uav_test_results.jsonl'
+    'uav_test_SC2.2_results.jsonl'
 )
 
 

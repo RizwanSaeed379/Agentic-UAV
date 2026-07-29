@@ -39,6 +39,7 @@ from shared.prompts import (
 from shared.logger import log_run
 from shared.scenarios import (
     get_scenario, resolve_anomaly, record_arrival, compress, score_run,
+    score_open_ended_run,
 )
 from pymavlink import mavutil
 
@@ -72,6 +73,9 @@ _PLANNER_RETRIES = 2
 _LOITER_STARTUP  = 8
 _NAV_TIMEOUT     = 300
 _WP_REACH_DIST   = 200   # 200m acceptance — fixed-wing needs this at 15-20 m/s
+_RTL_CONFIRM_TIMEOUT = 240   # ceiling for the RTL/return leg before we give up watching
+_RTL_ENGAGE_TIMEOUT  = 420   # separate ceiling for "still finishing prior leg" before RTL engages
+_HOME_HOLD_S     = 10    # must sit near home this long (not just transit through) to count
 _POLL_S          = 2
 _STEP_INTERVAL   = 0     # no wait between steps — upload next nav immediately
 
@@ -89,6 +93,12 @@ _MODE_REVERSE = {v:k for k,v in PLANE_MODES.items()}
 
 _SAFE_DEFAULT_PLAN = [
     {"command":"NAV_WAYPOINT","params":{"lat":WP_BRAVO_LAT,"lon":WP_BRAVO_LON,"alt":CRUISE_ALT}},
+    {"command":"RTL","params":{}},
+]
+# For an open-ended scenario, WP_BRAVO must never be flown to — it isn't
+# supposed to exist in that scenario at all. If the planner totally fails
+# there, the only safe fallback is to just go home.
+_SAFE_DEFAULT_PLAN_OPEN_ENDED = [
     {"command":"RTL","params":{}},
 ]
 
@@ -393,9 +403,107 @@ def _fly_loiter(master, uav, lat, lon, alt, turns, radius):
     log.warning("[LOITER] Timed out"); return False
 
 # ---------------------------------------------------------------------------
+# Post-mission return confirmation
+# ---------------------------------------------------------------------------
+def _confirm_return_home(uav, engage_timeout=_RTL_ENGAGE_TIMEOUT,
+                         arrival_timeout=_RTL_CONFIRM_TIMEOUT, reach=_WP_REACH_DIST):
+    """
+    Runs AFTER the mission is nominally "done" (last waypoint reached / RTL
+    engaged). RTL/LAND mission items keep running onboard even after this
+    script would otherwise exit, so we stay attached and verify the plane
+    actually gets home — instead of logging SUCCESS the instant the last
+    waypoint is reached or RTL mode is confirmed *requested*.
+
+    Two INDEPENDENTLY timed phases:
+      1. Wait for RTL/LAND to actually engage (or the vehicle to disarm).
+         "done" upstream can fire on a 200m arrival tolerance to the last
+         waypoint while the FC is still finishing that leg in AUTO — this
+         phase can legitimately take a while and must NOT eat into the
+         arrival budget below (that caused a real run to time out at 451m
+         from home purely because engagement was slow, not because the
+         return itself was slow).
+      2. Once RTL/LAND is actually observed, track distance-to-home with
+         its own fresh timeout.
+
+    Confirms return when EITHER:
+      - the vehicle disarms (landed), or
+      - RTL/LAND has engaged AND the vehicle is within `reach` of HOME,
+        holding there for _HOME_HOLD_S so a brief pass-through doesn't count.
+
+    Returns (confirmed: bool, note: str).
+    """
+    log.info("="*60)
+    log.info("[RETURN] Confirming plane actually returns home (post-mission) ...")
+    log.info("="*60)
+
+    # ---- Phase 1: wait for RTL/LAND to actually engage --------------------
+    t0 = time.time()
+    while True:
+        s     = uav.get_state()
+        armed = s.get("armed", False)
+        clat  = s.get("lat", 0.0)
+        mode  = s.get("mode", "")
+
+        if not armed and clat:
+            log.info("[RETURN] Disarmed — landed. Confirmed home.")
+            return True, "disarmed"
+
+        if mode in ("RTL", "LAND"):
+            log.info("[RETURN] %s engaged — now tracking distance to home", mode)
+            break
+
+        if time.time() - t0 >= engage_timeout:
+            log.warning("[RETURN] RTL/LAND never engaged within %ds (mode=%s)",
+                        engage_timeout, mode)
+            return False, f"RTL/LAND never engaged within {engage_timeout}s (last mode={mode})"
+
+        log.info("[RETURN] waiting for RTL/LAND to engage (mode=%s) ...", mode)
+        time.sleep(_POLL_S)
+
+    # ---- Phase 2: track distance-to-home on its own fresh clock ----------
+    t1 = time.time()
+    home_hold_start = None
+
+    while time.time() - t1 < arrival_timeout:
+        s     = uav.get_state()
+        armed = s.get("armed", False)
+        clat  = s.get("lat", 0.0)
+        clon  = s.get("lon", 0.0)
+        bat   = s.get("battery_pct", 100)
+        mode  = s.get("mode", "")
+
+        if not armed and clat:
+            log.info("[RETURN] Disarmed — landed. Confirmed home.")
+            return True, "disarmed"
+
+        if clat:
+            d_home = _hav(clat, clon, HOME_LAT, HOME_LON)
+            log.info("[RETURN] dist_home=%.0fm mode=%s armed=%s bat=%d%%",
+                      d_home, mode, armed, bat)
+
+            if d_home <= reach:
+                if home_hold_start is None:
+                    home_hold_start = time.time()
+                elif time.time() - home_hold_start >= _HOME_HOLD_S:
+                    log.info("[RETURN] Held near home %ds — confirmed.", _HOME_HOLD_S)
+                    return True, "reached_home_and_held"
+            else:
+                home_hold_start = None
+
+        if 0 <= bat < 5:
+            log.warning("[RETURN] Battery critical during return leg — unresolved")
+            return False, f"battery critical at {bat}% before confirmed return"
+
+        time.sleep(_POLL_S)
+
+    log.warning("[RETURN] Timed out (%ds) waiting for confirmed arrival home", arrival_timeout)
+    return False, "timed out waiting for confirmed arrival at home (RTL/LAND had engaged)"
+
+# ---------------------------------------------------------------------------
 # Planner
 # ---------------------------------------------------------------------------
-def call_planner(system_prompt: str, mission_context: str, past_steps: list) -> list:
+def call_planner(system_prompt: str, mission_context: str, past_steps: list,
+                 open_ended: bool = False):
     completed_summary = (
         "\n".join(f"  {i+1}. {s.get('command','?')} {s.get('params',{})}"
                   for i, s in enumerate(past_steps))
@@ -423,12 +531,19 @@ def call_planner(system_prompt: str, mission_context: str, past_steps: list) -> 
                 log.info("PLANNER generated %d steps", len(steps))
                 for i, s in enumerate(steps):
                     log.info("  Plan[%d]: %s %s", i, s.get("command","?"), s.get("params",{}))
-                return steps
+                reasoning = parsed.get("reasoning", "")
+                if reasoning:
+                    log.info("PLANNER reasoning: %s", reasoning)
+                return steps, False, reasoning
         log.warning("PLANNER attempt %d: could not parse", attempt)
         if attempt <= _PLANNER_RETRIES:
             prompt += f'\n\nPrevious output invalid. Output ONLY: {{"type":"mission_plan","steps":[...]}}'
+    if open_ended:
+        log.warning("PLANNER failed — using open-ended safe default (RTL only; "
+                    "WP_BRAVO must not be used for this scenario)")
+        return _SAFE_DEFAULT_PLAN_OPEN_ENDED[:], True, ""
     log.warning("PLANNER failed — using safe default")
-    return _SAFE_DEFAULT_PLAN[:]
+    return _SAFE_DEFAULT_PLAN[:], True, ""
 
 # ---------------------------------------------------------------------------
 # Executor
@@ -546,6 +661,7 @@ def run_plan_execute_mission(scenario_id: str = "SC1", run_number: int = 1,
     # LLM generates — no longer spoon-fed or reverted.
     cfg             = get_scenario(scenario_id)
     anomaly_enabled = resolve_anomaly(cfg, anomaly_override)
+    open_ended      = cfg.get("open_ended", False)
     planner_prompt  = plan_execute_planner_prompt(cfg)
     executor_prompt = plan_execute_executor_prompt(cfg)
     step_cap        = cfg["step_cap"]
@@ -555,6 +671,10 @@ def run_plan_execute_mission(scenario_id: str = "SC1", run_number: int = 1,
     terminal_cmd    = ""
     timed_out       = False
     safety_note     = ""
+    return_confirmed = False
+    return_note       = "not evaluated"
+    max_dist_from_home = 0.0
+    used_planner_fallback = False
 
     log.info("="*60)
     log.info("PARADIGM B: Plan-and-Execute — Autonomous (LLM plans the route)")
@@ -586,13 +706,56 @@ def run_plan_execute_mission(scenario_id: str = "SC1", run_number: int = 1,
     # Situation only — NOT a script. The planner decides the steps that achieve
     # the goal. Python has already scripted takeoff + the climb to WP_ALPHA
     # (below), so the plan should cover the mission from WP_ALPHA onward.
-    mission_context = (
-        f"The UAV is airborne at cruise altitude and has reached WP_ALPHA "
-        f"({WP_ALPHA_LAT},{WP_ALPHA_LON}). Plan the remaining flight to achieve "
-        f"the goal from here, and finish by returning home."
-    )
+    # The planner decides the plan — Python's job here is to make sure it has
+    # everything it needs to decide correctly, not to override its output
+    # afterward. Previously the anomaly status was never actually told to the
+    # planner, which is very likely why it added LOITER_TURNS steps even on
+    # a no-anomaly run: it had no way to know there was nothing to investigate.
+    if open_ended:
+        mission_context = (
+            f"The UAV is airborne and holding near HOME at cruise altitude. "
+            f"There is no predefined waypoint to fly to — decide where to go "
+            f"to achieve the goal, then finish by returning home.\n\n"
+            f"No fixed waypoints beyond HOME are provided for this mission.\n"
+            f"Disturbance status for THIS run: "
+            f"{'A disturbance IS active — investigate it with LOITER_TURNS at the ANOMALY coordinates.' if anomaly_enabled else 'NO disturbance is active this run — do NOT include any LOITER_TURNS step.'}\n"
+            f"Every NAV_WAYPOINT and LOITER_TURNS step must include explicit "
+            f"lat/lon/alt (and turns/radius for LOITER_TURNS) — do not omit "
+            f"them and do not rely on defaults."
+        )
+    else:
+        mission_context = (
+            f"The UAV is airborne at cruise altitude and has reached WP_ALPHA "
+            f"({WP_ALPHA_LAT},{WP_ALPHA_LON}). Plan the remaining flight to achieve "
+            f"the goal from here, and finish by returning home.\n\n"
+            f"Known waypoints: WP_BRAVO=({WP_BRAVO_LAT},{WP_BRAVO_LON}), "
+            f"MIDPOINT=({MIDPOINT_LAT},{MIDPOINT_LON}), "
+            f"ANOMALY=({ANOMALY_LAT},{ANOMALY_LON}).\n"
+            f"Disturbance status for THIS run: "
+            f"{'A disturbance IS active — investigate it with LOITER_TURNS at the ANOMALY coordinates.' if anomaly_enabled else 'NO disturbance is active this run — do NOT include any LOITER_TURNS step.'}\n"
+            f"Every NAV_WAYPOINT and LOITER_TURNS step must include explicit "
+            f"lat/lon/alt (and turns/radius for LOITER_TURNS) — do not omit them "
+            f"and do not rely on defaults."
+        )
     llm_calls += 1
-    current_plan = call_planner(planner_prompt, mission_context, past_steps=[])
+    current_plan, fell_back, planner_reasoning = call_planner(
+        planner_prompt, mission_context, past_steps=[], open_ended=open_ended)
+    if fell_back:
+        used_planner_fallback = True
+    reasoning_log = []
+    if planner_reasoning:
+        reasoning_log.append(f"initial_plan: {planner_reasoning}")
+
+    # Diagnostic only — does NOT modify the plan. If the planner still omits
+    # lat/lon despite being asked for them, this makes that visible in the
+    # log instead of it silently falling back to ANOMALY coordinates later.
+    for i, s in enumerate(current_plan):
+        if s.get("command") in ("NAV_WAYPOINT", "LOITER_TURNS"):
+            p = s.get("params", {})
+            if "lat" not in p or "lon" not in p:
+                log.warning("[PLAN] Step[%d] %s is missing explicit lat/lon — "
+                            "will fall back to a default location downstream",
+                            i, s.get("command"))
 
     # -----------------------------------------------------------------------
     # STEP 2: Executor validates each step on the ground.
@@ -625,6 +788,9 @@ def run_plan_execute_mission(scenario_id: str = "SC1", run_number: int = 1,
                 validated = {**validated, "params": {**new_p, "alt": orig_alt}}
             log.info("  [%d] %s -> executor: %s %s", i, step_cmd,
                      validated.get("command"), validated.get("params", {}))
+            if validated.get("reasoning"):
+                log.info("  [%d] Executor reasoning: %s", i, validated["reasoning"])
+                reasoning_log.append(f"executor_step{i}: {validated['reasoning']}")
         validated_plan.append(validated)
 
     # -----------------------------------------------------------------------
@@ -658,15 +824,21 @@ def run_plan_execute_mission(scenario_id: str = "SC1", run_number: int = 1,
              current=1, autocontinue=1,
              p1=15, p2=0, p3=0, p4=0,
              x=HOME_LAT, y=HOME_LON, z=CRUISE_ALT),
-        # seq 2: WP_ALPHA
-        dict(seq=2, frame=frame,
-             command=mavutil.mavlink.MAV_CMD_NAV_WAYPOINT,
-             current=0, autocontinue=1,
-             p1=0, p2=200, p3=0, p4=0,
-             x=WP_ALPHA_LAT, y=WP_ALPHA_LON, z=CRUISE_ALT),
     ]
 
-    seq = 3
+    if not open_ended:
+        # seq 2: WP_ALPHA — scripted vehicle bring-up for the fixed-route
+        # scenarios. For an open-ended scenario (no waypoints given), this
+        # must NOT fly — the plane physically going to Alpha's coordinates
+        # would contaminate the test regardless of what the prompt says.
+        full_mission.append(dict(
+            seq=2, frame=frame,
+            command=mavutil.mavlink.MAV_CMD_NAV_WAYPOINT,
+            current=0, autocontinue=1,
+            p1=0, p2=200, p3=0, p4=0,
+            x=WP_ALPHA_LAT, y=WP_ALPHA_LON, z=CRUISE_ALT))
+
+    seq = len(full_mission)
     for step in validated_plan:
         cmd  = step.get("command", "")
         p    = step.get("params", {})
@@ -766,6 +938,18 @@ def run_plan_execute_mission(scenario_id: str = "SC1", run_number: int = 1,
     plan_terminal = next((st["command"] for st in reversed(validated_plan)
                           if st.get("command") in ("RTL", "LAND")), "")
 
+    # Coordinates + seq of the final planned NAV/LOITER waypoint. Completion is
+    # anchored on REACHING this point by distance — wp_seq alone equals a
+    # waypoint's index while still en route (so it trips early), and SITL mode
+    # flickers to RTL transiently, so neither is a safe standalone signal.
+    _last_wp = next((it for it in reversed(full_mission)
+                     if it["command"] in (mavutil.mavlink.MAV_CMD_NAV_WAYPOINT,
+                                           mavutil.mavlink.MAV_CMD_NAV_LOITER_TURNS)), None)
+    last_wp_lat  = _last_wp["x"]   if _last_wp else WP_BRAVO_LAT
+    last_wp_lon  = _last_wp["y"]   if _last_wp else WP_BRAVO_LON
+    last_nav_seq = _last_wp["seq"] if _last_wp else terminal_seq
+    has_terminal = plan_terminal in ("RTL", "LAND")
+
     log.info("="*60)
     log.info("MONITORING flight — ArduPlane handles navigation ...")
     log.info("="*60)
@@ -786,14 +970,19 @@ def run_plan_execute_mission(scenario_id: str = "SC1", run_number: int = 1,
 
             # Ground-truth arrival tracking for scoring (observation only)
             record_arrival(clat, clon, score_wps, arrivals)
+            _d_home = _hav(clat, clon, HOME_LAT, HOME_LON)
+            if _d_home > max_dist_from_home:
+                max_dist_from_home = _d_home
 
-            # Track waypoint completions by sequence number
-            if not wp_alpha_ok and wp > SEQ_WP_ALPHA:
+            # Track waypoint completions by sequence number (not meaningful
+            # for an open-ended scenario, where seq=2 is the first
+            # LLM-planned step, not WP_ALPHA)
+            if not open_ended and not wp_alpha_ok and wp > SEQ_WP_ALPHA:
                 d = _hav(clat, clon, WP_ALPHA_LAT, WP_ALPHA_LON)
                 wp_alpha_ok = True
                 log.info("[OK] WP_ALPHA passed (seq=%d dist=%.0fm bat=%d%%)", wp, d, bat)
 
-            if not midpoint_ok and wp > SEQ_MIDPOINT:
+            if not open_ended and not midpoint_ok and wp > SEQ_MIDPOINT:
                 d = _hav(clat, clon, MIDPOINT_LAT, MIDPOINT_LON)
                 midpoint_ok = True
                 log.info("[OK] MIDPOINT passed (seq=%d dist=%.0fm bat=%d%%)", wp, d, bat)
@@ -838,7 +1027,13 @@ def run_plan_execute_mission(scenario_id: str = "SC1", run_number: int = 1,
                     # Pass [] for past_steps — completed steps are described
                     # in replan_context string already, not as step dicts.
                     llm_calls += 1
-                    new_plan = call_planner(planner_prompt, replan_context, past_steps=[])
+                    new_plan, replan_fell_back, replan_reasoning = call_planner(
+                        planner_prompt, replan_context, past_steps=[],
+                        open_ended=open_ended)
+                    if replan_fell_back:
+                        used_planner_fallback = True
+                    if replan_reasoning:
+                        reasoning_log.append(f"replan: {replan_reasoning}")
 
                     if new_plan:
                         log.info("[REPLAN] Planner returned %d new steps:", len(new_plan))
@@ -975,12 +1170,18 @@ def run_plan_execute_mission(scenario_id: str = "SC1", run_number: int = 1,
                         time.sleep(0.5)
                         set_mode(master, "AUTO")
 
-            if not loiter_ok and wp > SEQ_LOITER:
+            if not open_ended and not loiter_ok and wp > SEQ_LOITER:
                 loiter_ok = True
-                anomaly_response = "LOITER_TURNS"
+                # Previously this fired purely because the mission progressed
+                # past a fixed sequence index — regardless of whether that
+                # item was ever actually a LOITER_TURNS, or whether an anomaly
+                # was even enabled this run. Only credit it when a disturbance
+                # genuinely fired.
+                if anomaly_fired:
+                    anomaly_response = "LOITER_TURNS"
                 log.info("[OK] LOITER complete (seq=%d bat=%d%%)", wp, bat)
 
-            if not bravo_ok and wp > SEQ_BRAVO:
+            if not open_ended and not bravo_ok and wp > SEQ_BRAVO:
                 d = _hav(clat, clon, WP_BRAVO_LAT, WP_BRAVO_LON)
                 bravo_ok = True
                 log.info("[OK] WP_BRAVO passed (seq=%d dist=%.0fm bat=%d%%)", wp, d, bat)
@@ -995,13 +1196,39 @@ def run_plan_execute_mission(scenario_id: str = "SC1", run_number: int = 1,
                 terminal_cmd = "RTL"; safety_note = "SAFETY_RTL"
                 break
 
-            # Mission complete when the plan's terminal item is reached
-            if wp >= terminal_seq or mode in ("RTL", "LAND"):
+            # Mission complete when the plane REACHES the final planned waypoint
+            # (distance-based). wp_seq is only a corroborating backup for a real
+            # terminal RTL/LAND item, which sits strictly AFTER the last waypoint;
+            # transient SITL mode flicker is never used as a trigger.
+            #
+            # IMPORTANT: also require wp >= last_nav_seq. Distance-alone match
+            # is fooled when an EARLIER mission item happens to share coordinates
+            # with the final one (e.g. two LOITER_TURNS steps that both default
+            # to ANOMALY_LAT/LON because the planner omitted lat/lon) — without
+            # this guard, arriving at the earlier duplicate falsely looks like
+            # "reached the final waypoint" while the plane hasn't gotten there.
+            reached_last = (clat and wp >= last_nav_seq
+                            and _hav(clat, clon, last_wp_lat, last_wp_lon) <= _WP_REACH_DIST)
+            done = False
+            if has_terminal and (wp >= terminal_seq or reached_last):
+                # Plan ends with a real return-home step; its RTL/LAND mission item
+                # flies the plane home autonomously after the final waypoint.
+                terminal_cmd = plan_terminal
+                done = True
+            elif not has_terminal and (reached_last or wp > last_nav_seq):
+                # The agent's plan has NO return-home step. Reaching the final
+                # waypoint is the end of the plan -> REASONING_FAILURE. Issue a
+                # recovery RTL so the vehicle returns home for the next run.
+                terminal_cmd = ""
+                log.warning("[PLAN] Final waypoint reached but plan had no "
+                            "return-home step — recovery RTL (REASONING_FAILURE)")
+                set_mode(master, "RTL")
+                safety_note = "RECOVERY_RTL"
+                done = True
+            if done:
                 record_arrival(clat, clon, score_wps, arrivals)
-                terminal_cmd = (plan_terminal if plan_terminal in ("RTL", "LAND")
-                                else ("LAND" if mode == "LAND" else "RTL"))
-                log.info("[OK] Mission complete — terminal=%s reached=%s",
-                         terminal_cmd, compress(arrivals))
+                log.info("[OK] Mission end — terminal=%s reached=%s",
+                         terminal_cmd or "NONE", compress(arrivals))
                 break
 
             time.sleep(_POLL_S)
@@ -1009,20 +1236,51 @@ def run_plan_execute_mission(scenario_id: str = "SC1", run_number: int = 1,
             timed_out = True
             log.warning("[TIMEOUT] Monitor loop timed out before completion")
 
+        # ---------------------------------------------------------------
+        # STEP 5: Don't declare the mission finished just because the last
+        # waypoint was reached or RTL mode was requested — RTL/LAND still
+        # has to actually fly the plane home after this. Stay attached and
+        # watch that leg through to disarm / a confirmed hold at home.
+        # ---------------------------------------------------------------
+        if not timed_out:
+            return_confirmed, return_note = _confirm_return_home(uav)
+        else:
+            return_note = "monitor loop timed out before reaching terminal step; return leg unverified"
+
     except KeyboardInterrupt:
         log.warning("Interrupted — RTL")
         set_mode(master, "RTL")
+        return_note = "run interrupted by user; return leg unverified"
 
     finally:
         reached = compress(arrivals)
         # Map a monitor-loop timeout onto the shared scorer's TIMEOUT path.
         score_step_n = step_cap + 1 if (timed_out and terminal_cmd == "") else 0
-        outcome, failure_type, note = score_run(
-            arrivals, expected_order, score_step_n, step_cap, terminal_cmd)
+        if open_ended:
+            outcome, failure_type, note = score_open_ended_run(
+                max_dist_from_home, terminal_cmd, score_step_n, step_cap,
+                fallback=used_planner_fallback)
+            note += f"; max_dist_from_home={max_dist_from_home:.0f}m"
+        else:
+            outcome, failure_type, note = score_run(
+                arrivals, expected_order, score_step_n, step_cap, terminal_cmd,
+                fallback=used_planner_fallback)
+
+        # A plan can look like SUCCESS purely from reaching its last waypoint
+        # / requesting RTL, while the actual return-home leg (flown onboard,
+        # after this script would otherwise have exited) still fails. Don't
+        # let that go unrecorded.
+        if not return_confirmed and outcome == "SUCCESS":
+            outcome = "PARTIAL"
+            failure_type = failure_type or "RETURN_NOT_CONFIRMED"
+
         notes = (f"plan_steps={len(validated_plan)}; replans={replan_count}; "
-                 f"terminal={terminal_cmd or 'NONE'}; {note}")
+                 f"terminal={terminal_cmd or 'NONE'}; {note}; "
+                 f"return_confirmed={return_confirmed} ({return_note})")
         if safety_note:
             notes += f"; {safety_note}"
+        if reasoning_log:
+            notes += f"; reasoning=[{' | '.join(reasoning_log)}]"
 
         log.info("="*60)
         log.info("MISSION SUMMARY (scenario %s):", scenario_id)
@@ -1030,6 +1288,7 @@ def run_plan_execute_mission(scenario_id: str = "SC1", run_number: int = 1,
         log.info("  Expected order    : %s", expected_order)
         log.info("  Terminal command  : %s", terminal_cmd or "NONE")
         log.info("  Anomaly enabled   : %s (fired=%s)", anomaly_enabled, anomaly_fired)
+        log.info("  Return confirmed  : %s (%s)", return_confirmed, return_note)
         log.info("  LLM calls         : %d", llm_calls)
         log.info("  OUTCOME           : %s (%s)", outcome, failure_type)
         log.info("="*60)

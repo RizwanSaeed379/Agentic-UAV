@@ -98,7 +98,7 @@ def agent_step(
     system_prompt: str,
     telemetry:     dict,
     history:       list,
-    uav_state:     dict,
+    uav,
     step_label:    str = "",
 ) -> dict:
     """
@@ -110,12 +110,19 @@ def agent_step(
     Args:
         model:         Ollama model tag (e.g. MODEL_REACT).
         system_prompt: Full system prompt string for this paradigm.
-        telemetry:     Current UAV telemetry as a flat dict.
+        telemetry:     Current UAV telemetry as a flat dict, injected into the
+                       prompt text (a snapshot from the top of this step — this
+                       is fine, it's what the LLM reasons about for THIS step).
         history:       Mutable list of step strings (modified in-place).
-        uav_state:     Live UAV state dict passed through to tool calls.
-                       NOTE: pass uav.get_state() at call time so tools have
-                       a fresh snapshot independent of the telemetry dict
-                       that was already injected into the prompt.
+        uav:           The live UAVState object (must have .get_state()).
+                       IMPORTANT: this is NOT the same as `telemetry` above —
+                       every tool call fetches a FRESH uav.get_state() at the
+                       moment it executes, since tools like get_telemetry,
+                       check_battery, and anomaly_status read live, changing
+                       state. Passing a static snapshot here instead would mean
+                       every tool call inside this step's inner loop — no
+                       matter how many rounds — returns identical frozen data,
+                       which defeats the purpose of calling the tool again.
         step_label:    Optional label printed in log lines (e.g. "STEP_3").
 
     Returns:
@@ -128,7 +135,6 @@ def agent_step(
 
     last_tool:   str  = ""
     last_args:   dict = {}
-    last_result: str  = ""
 
     for tool_call_n in range(_MAX_TOOL_CALLS + 1):
         # -----------------------------------------------------------------
@@ -191,22 +197,20 @@ def agent_step(
             tool_name = parsed.get("tool_name", "")
             arguments = parsed.get("arguments", {})
 
-            # Deduplicate repeated identical tool calls
             if tool_name == last_tool and arguments == last_args:
                 log.info(
-                    "%sDuplicate tool call %s — reusing previous result",
+                    "%sRepeated tool call %s — re-fetching fresh state "
+                    "(not reusing prior result, since it may have changed)",
                     label, tool_name,
                 )
-                prompt += f"\n\nTool result (cached): {last_result}\nNext action:"
-                continue
 
+            fresh_state = uav.get_state()
             log.info("%sTool call: %s(%s)", label, tool_name, arguments)
-            result = execute_tool(tool_name, arguments, uav_state)
+            result = execute_tool(tool_name, arguments, fresh_state)
             log.info("%sTool result: %s", label, result)
 
             last_tool   = tool_name
             last_args   = arguments
-            last_result = result
 
             entry = f"Tool: {tool_name} -> {result}"
             history.append(entry)

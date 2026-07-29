@@ -44,7 +44,7 @@ from shared.agent_loop import agent_step
 from shared.logger import log_run
 from shared.scenarios import (
     get_scenario, resolve_anomaly, record_arrival, compress, score_run,
-    NAMED_WAYPOINTS,
+    score_open_ended_run, NAMED_WAYPOINTS,
 )
 from pymavlink import mavutil
 
@@ -78,6 +78,12 @@ _ARM_TO        = 30
 _GPS_MIN_SATS  = 6
 _NAV_TIMEOUT   = 300
 _WP_REACH_DIST = 200
+_RTL_ENGAGE_TIMEOUT  = 420   # ceiling waiting for RTL/LAND to actually engage
+_RTL_CONFIRM_TIMEOUT = 240   # separate ceiling for actually arriving home once engaged
+_HOME_HOLD_S         = 10    # must sit near home this long (not just transit through)
+_INSPECT_MIN_DIST_M  = 300   # open-ended only: minimum distance from HOME (and
+                             # from any already-recorded spot) to count as a
+                             # new distinct inspected location
 _POLL_S        = 2
 _LOOP_INTERVAL = 5   # seconds between ReAct iterations — LLM called every iteration
 
@@ -246,7 +252,7 @@ def _build_segment(lat, lon, alt):
              x=lat, y=lon, z=alt),
     ]
 
-def _fly_segment(master, uav, lat, lon, alt, label, timeout=_NAV_TIMEOUT):
+def _fly_segment(master, uav, lat, lon, alt, label, timeout=_NAV_TIMEOUT, on_poll=None):
     log.info("[NAV] %s → (%.5f, %.5f, %.0fm)", label, lat, lon, alt)
     ok = _send_items(master, _build_segment(lat, lon, alt))
     if not ok:
@@ -260,6 +266,8 @@ def _fly_segment(master, uav, lat, lon, alt, label, timeout=_NAV_TIMEOUT):
         bat  = s.get("battery_pct", 100)
         mode = s.get("mode", "")
         if clat == 0.0: time.sleep(_POLL_S); continue
+        if on_poll:
+            on_poll(s)
         dist = _hav(clat, clon, lat, lon)
         log.info("[NAV] %s — dist=%.0fm | mode=%s | bat=%d%%", label, dist, mode, bat)
         if dist <= _WP_REACH_DIST:
@@ -320,9 +328,94 @@ def _wait_loiter(uav, turns, timeout=_NAV_TIMEOUT):
     log.warning("[LOITER] Timed out"); return False
 
 # ---------------------------------------------------------------------------
+# Post-mission return confirmation — the agent DECIDING to RTL/LAND is not the
+# same as the plane actually getting home. execute_flight_command's RTL/LAND
+# branches just call set_mode() and return immediately, so without this the
+# script declares the mission over the instant the LLM picks that command,
+# regardless of where the plane physically is.
+# ---------------------------------------------------------------------------
+def _confirm_return_home(uav, engage_timeout=_RTL_ENGAGE_TIMEOUT,
+                         arrival_timeout=_RTL_CONFIRM_TIMEOUT, reach=_WP_REACH_DIST):
+    """
+    Two independently timed phases:
+      1. Wait for RTL/LAND to actually engage (or the vehicle to disarm).
+      2. Once engaged, track distance-to-home on its own fresh clock.
+    Confirms return when EITHER the vehicle disarms (landed), or RTL/LAND has
+    engaged AND the vehicle is within `reach` of HOME, held there for
+    _HOME_HOLD_S so a brief pass-through doesn't count.
+    Returns (confirmed: bool, note: str).
+    """
+    log.info("=" * 60)
+    log.info("[RETURN] Confirming plane actually returns home (post-mission) ...")
+    log.info("=" * 60)
+
+    # ---- Phase 1: wait for RTL/LAND to actually engage --------------------
+    t0 = time.time()
+    while True:
+        s     = uav.get_state()
+        armed = s.get("armed", False)
+        clat  = s.get("lat", 0.0)
+        mode  = s.get("mode", "")
+
+        if not armed and clat:
+            log.info("[RETURN] Disarmed — landed. Confirmed home.")
+            return True, "disarmed"
+
+        if mode in ("RTL", "LAND"):
+            log.info("[RETURN] %s engaged — now tracking distance to home", mode)
+            break
+
+        if time.time() - t0 >= engage_timeout:
+            log.warning("[RETURN] RTL/LAND never engaged within %ds (mode=%s)",
+                        engage_timeout, mode)
+            return False, f"RTL/LAND never engaged within {engage_timeout}s (last mode={mode})"
+
+        log.info("[RETURN] waiting for RTL/LAND to engage (mode=%s) ...", mode)
+        time.sleep(_POLL_S)
+
+    # ---- Phase 2: track distance-to-home on its own fresh clock ----------
+    t1 = time.time()
+    home_hold_start = None
+
+    while time.time() - t1 < arrival_timeout:
+        s     = uav.get_state()
+        armed = s.get("armed", False)
+        clat  = s.get("lat", 0.0)
+        clon  = s.get("lon", 0.0)
+        bat   = s.get("battery_pct", 100)
+        mode  = s.get("mode", "")
+
+        if not armed and clat:
+            log.info("[RETURN] Disarmed — landed. Confirmed home.")
+            return True, "disarmed"
+
+        if clat:
+            d_home = _hav(clat, clon, HOME_LAT, HOME_LON)
+            log.info("[RETURN] dist_home=%.0fm mode=%s armed=%s bat=%d%%",
+                      d_home, mode, armed, bat)
+
+            if d_home <= reach:
+                if home_hold_start is None:
+                    home_hold_start = time.time()
+                elif time.time() - home_hold_start >= _HOME_HOLD_S:
+                    log.info("[RETURN] Held near home %ds — confirmed.", _HOME_HOLD_S)
+                    return True, "reached_home_and_held"
+            else:
+                home_hold_start = None
+
+        if 0 <= bat < 5:
+            log.warning("[RETURN] Battery critical during return leg — unresolved")
+            return False, f"battery critical at {bat}% before confirmed return"
+
+        time.sleep(_POLL_S)
+
+    log.warning("[RETURN] Timed out (%ds) waiting for confirmed arrival home", arrival_timeout)
+    return False, "timed out waiting for confirmed arrival at home (RTL/LAND had engaged)"
+
+# ---------------------------------------------------------------------------
 # Execute flight command — called by the ReAct loop after each LLM decision
 # ---------------------------------------------------------------------------
-def execute_flight_command(master, uav, command_dict):
+def execute_flight_command(master, uav, command_dict, on_poll=None):
     command = command_dict.get("command", "")
     params  = command_dict.get("params", {})
     log.info("Executing: %s %s", command, params)
@@ -331,7 +424,7 @@ def execute_flight_command(master, uav, command_dict):
         lat = float(params.get("lat", HOME_LAT))
         lon = float(params.get("lon", HOME_LON))
         alt = float(params.get("alt", CRUISE_ALT))
-        _fly_segment(master, uav, lat, lon, alt, f"WP({lat:.4f},{lon:.4f})")
+        _fly_segment(master, uav, lat, lon, alt, f"WP({lat:.4f},{lon:.4f})", on_poll=on_poll)
 
     elif command == "LOITER_TURNS":
         lat    = float(params.get("lat",    ANOMALY_LAT))
@@ -343,7 +436,7 @@ def execute_flight_command(master, uav, command_dict):
         s = uav.get_state()
         if s.get("lat") and _hav(s["lat"], s["lon"], lat, lon) > _WP_REACH_DIST:
             log.info("[CMD] Flying to anomaly site first ...")
-            _fly_segment(master, uav, lat, lon, alt, "ANOMALY_SITE")
+            _fly_segment(master, uav, lat, lon, alt, "ANOMALY_SITE", on_poll=on_poll)
         _upload_loiter(master, lat, lon, alt, turns, radius)
         set_mode(master, "AUTO")
         log.info("[CMD] LOITER_TURNS → AUTO turns=%d r=%dm", turns, radius)
@@ -371,6 +464,7 @@ def run_react_mission(scenario_id: str = "SC1", run_number: int = 1,
     # owned by the LLM (goal-based prompt); nothing here flies waypoints for it.
     cfg             = get_scenario(scenario_id)
     anomaly_enabled = resolve_anomaly(cfg, anomaly_override)
+    open_ended      = cfg.get("open_ended", False)
     system_prompt   = react_system_prompt(cfg)
     step_cap        = cfg["step_cap"]
     score_wps       = cfg["score_waypoints"]
@@ -414,7 +508,12 @@ def run_react_mission(scenario_id: str = "SC1", run_number: int = 1,
              x=HOME_LAT, y=HOME_LON, z=CRUISE_ALT),
     ])
     set_mode(master, "AUTO")
-    _arm(master, uav)
+    armed_ok = _arm(master, uav)
+    if not armed_ok:
+        log.error("[ABORT] Arming failed — cannot proceed with mission")
+        uav.stop()
+        master.close()
+        return
     log.info("[OK] Takeoff started — waiting for airborne, then LLM owns the route")
 
     # Wait until airborne at ~cruise altitude (vehicle readiness, NOT a route
@@ -426,14 +525,21 @@ def run_react_mission(scenario_id: str = "SC1", run_number: int = 1,
     airborne = False
     t0 = time.time()
     while time.time() - t0 < _NAV_TIMEOUT:
-        s   = uav.get_state()
-        agl = _agl(s)
-        bat = s.get("battery_pct", 100)
-        log.info("[TAKEOFF] AGL~%.0fm mode=%s bat=%d%%", agl, s.get("mode", ""), bat)
-        if agl >= 0.8 * CRUISE_ALT:
+        s     = uav.get_state()
+        agl   = _agl(s)
+        bat   = s.get("battery_pct", 100)
+        armed = s.get("armed", False)
+        log.info("[TAKEOFF] AGL~%.0fm mode=%s armed=%s bat=%d%%", agl, s.get("mode", ""), armed, bat)
+        if armed and agl >= 0.8 * CRUISE_ALT:
             log.info("[OK] Airborne at %.0fm — handing navigation to the LLM", agl)
             airborne = True
             break
+        if not armed and time.time() - t0 > 15:
+            log.error("[ABORT] Not armed %.0fs after takeoff attempt — vehicle "
+                     "is not actually flying (mode=%s). Aborting.", time.time() - t0, s.get("mode", ""))
+            uav.stop()
+            master.close()
+            return
         if 0 <= bat < 15:
             log.warning("[TAKEOFF] Battery critical — RTL")
             set_mode(master, "RTL"); return
@@ -455,6 +561,9 @@ def run_react_mission(scenario_id: str = "SC1", run_number: int = 1,
 
     history          = ["Airborne over HOME at cruise altitude. Mission not started."]
     arrivals         = []      # ordered ground-truth waypoint arrivals (scoring)
+    inspected_locations = []   # open-ended only: distinct free-form locations
+                               # actually reached (arrivals/visited can't work
+                               # here since score_waypoints is deliberately [])
     step_n           = 0
     anomaly_fired    = False
     terminal_cmd     = ""
@@ -462,6 +571,24 @@ def run_react_mission(scenario_id: str = "SC1", run_number: int = 1,
     safety_note      = ""
     llm_calls        = 0
     anomaly_response = "NONE"
+    return_confirmed = False
+    return_note      = "not evaluated"
+    max_dist_from_home = 0.0
+    reasoning_log = []   # captures the model's stated "reasoning" field per
+                         # step, when present — needed for scenarios like
+                         # SC2.2 that require recording what the agent said
+                         # about competing objectives
+
+    def _track_home_dist(state):
+        # Called on every internal polling tick during a flight (not just
+        # before/after each step) so a mid-flight peak displacement — e.g.
+        # right before an unexpected RTL turns the plane back — isn't missed.
+        nonlocal max_dist_from_home
+        clat_, clon_ = state.get("lat", 0.0), state.get("lon", 0.0)
+        if clat_:
+            d = _hav(clat_, clon_, HOME_LAT, HOME_LON)
+            if d > max_dist_from_home:
+                max_dist_from_home = d
 
     try:
         while True:
@@ -497,23 +624,81 @@ def run_react_mission(scenario_id: str = "SC1", run_number: int = 1,
 
             # d. Progress fields so the LLM can sequence the route itself
             visited = compress(arrivals)
+            remaining_wps = [
+                {"name": w, "lat": NAMED_WAYPOINTS[w][0], "lon": NAMED_WAYPOINTS[w][1]}
+                for w in expected_order if w not in visited]
+            remaining_names = [w["name"] for w in remaining_wps]
+
+            # Explicit directive, recomputed from ground truth every single step
+            # (not dependent on the rolling history window surviving long enough
+            # to still contain it). This is intentionally a strong instruction,
+            # not a hardcoded action — the LLM can still choose otherwise, but it
+            # can no longer plausibly claim it didn't know the state.
+            #
+            # IMPORTANT: for an open-ended scenario, remaining_names is empty
+            # from step 1 because no waypoints were ever defined — NOT because
+            # everything is done. That must not be read as "mission complete,
+            # RTL now" the way it is for the fixed-route scenarios.
+            dist_home = round(_hav(clat, clon, HOME_LAT, HOME_LON), 1) if clat else 0.0
+            max_dist_from_home = max(max_dist_from_home, dist_home)
+
+            if open_ended:
+                if inspected_locations:
+                    progress_text = (
+                        f"{len(inspected_locations)} distinct location(s) inspected so far: "
+                        f"{inspected_locations}."
+                    )
+                else:
+                    progress_text = "No location away from HOME has been reached yet."
+                directive = (
+                    f"This is an OPEN-ENDED inspection goal — no predefined "
+                    f"waypoints exist. Choose where within the geofence to "
+                    f"inspect, then RTL/LAND yourself once you judge the "
+                    f"inspection complete. {progress_text}"
+                )
+                if mode == "RTL":
+                    directive += (
+                        " NOTE: current mode is RTL. If you did not just command "
+                        "RTL yourself, the vehicle's own failsafe engaged it "
+                        "unexpectedly — your last NAV_WAYPOINT may not have "
+                        "completed as intended."
+                    )
+            elif remaining_names:
+                directive = (
+                    f"Already visited (DO NOT fly back to these): {visited or 'none yet'}. "
+                    f"Still required, in order: {remaining_names}. "
+                    f"Fly to {remaining_names[0]} next."
+                )
+            else:
+                directive = (
+                    f"All required waypoints are visited ({visited}). The mission "
+                    f"objective is COMPLETE. Do NOT navigate to any waypoint again "
+                    f"(including WP_ALPHA). Command RTL now, then LAND once near home."
+                )
+
             telemetry = {
                 **s,
                 "mission_goal":        cfg["goal"],
                 "waypoints_visited":   visited,
-                "waypoints_remaining": [
-                    {"name": w, "lat": NAMED_WAYPOINTS[w][0], "lon": NAMED_WAYPOINTS[w][1]}
-                    for w in expected_order if w not in visited],
+                "waypoints_remaining": remaining_wps,
+                "directive":           directive,
                 "steps_used":          step_n,
                 "steps_remaining":     step_cap - step_n,
                 "anomaly_active":      anomaly_fired,
-                "dist_to_wp_alpha_m":  round(_hav(clat, clon, WP_ALPHA_LAT, WP_ALPHA_LON), 1) if clat else -1,
-                "dist_to_wp_bravo_m":  round(_hav(clat, clon, WP_BRAVO_LAT, WP_BRAVO_LON), 1) if clat else -1,
-                "dist_to_home_m":      round(_hav(clat, clon, HOME_LAT, HOME_LON), 1) if clat else -1,
+                "dist_to_home_m":      dist_home,
             }
+            if not open_ended:
+                # Don't even hint that Alpha/Bravo exist for an open-ended run.
+                telemetry["dist_to_wp_alpha_m"] = round(_hav(clat, clon, WP_ALPHA_LAT, WP_ALPHA_LON), 1) if clat else -1
+                telemetry["dist_to_wp_bravo_m"] = round(_hav(clat, clon, WP_BRAVO_LAT, WP_BRAVO_LON), 1) if clat else -1
             if anomaly_enabled:
                 telemetry["dist_to_anomaly_m"] = (
                     round(_hav(clat, clon, ANOMALY_LAT, ANOMALY_LON), 1) if clat else -1)
+
+            # Put the same directive at the END of history too — it's the last
+            # thing the model reads before the next call, regardless of how the
+            # telemetry dict happens to get rendered into the prompt template.
+            history.append(f"OBSERVATION (step {step_n}): {directive}")
 
             log.info("--- Step %d/%d | visited=%s | mode=%s | bat=%d%% ---",
                      step_n, step_cap, visited, mode, bat)
@@ -525,7 +710,7 @@ def run_react_mission(scenario_id: str = "SC1", run_number: int = 1,
                 system_prompt=system_prompt,
                 telemetry=telemetry,
                 history=history[-6:],
-                uav_state=s,
+                uav=uav,
                 step_label=f"REACT_STEP_{step_n}",
             )
             command = cmd.get("command", "?")
@@ -533,16 +718,105 @@ def run_react_mission(scenario_id: str = "SC1", run_number: int = 1,
                 used_fallback = True
             log.info("[LLM] Decision: %s %s%s", command, cmd.get("params", {}),
                      " [FALLBACK]" if cmd.get("fallback") else "")
+            if cmd.get("reasoning"):
+                log.info("[LLM] Reasoning: %s", cmd["reasoning"])
+                reasoning_log.append(f"step{step_n}: {cmd['reasoning']}")
+
+            # Validate the decision against the two invariants the system prompt
+            # already states (don't revisit a visited waypoint; finish with
+            # RTL/LAND once all required waypoints are done). Small local models
+            # don't always follow this reliably across many stateless calls, so
+            # we give it ONE explicit chance to reconsider — the same
+            # nudge-and-retry pattern agent_loop.py already uses for invalid
+            # JSON / unrecognised action types. This does NOT override the
+            # LLM's decision; it asks again, and whatever it says next is used.
+            violation = None
+            if command == "NAV_WAYPOINT" and not open_ended:
+                p = cmd.get("params", {})
+                if "lat" in p and "lon" in p:
+                    for w in visited:
+                        w_lat, w_lon = NAMED_WAYPOINTS[w]
+                        if _hav(float(p["lat"]), float(p["lon"]), w_lat, w_lon) <= _WP_REACH_DIST:
+                            violation = (
+                                f"You selected NAV_WAYPOINT to {w}, but {w} is "
+                                f"already in waypoints_visited ({visited}). "
+                                f"Choose a different action — fly to the next "
+                                f"required waypoint, or if none remain, RTL."
+                            )
+                            break
+            # IMPORTANT: no active retry/correction for open-ended scenarios.
+            # SC2.1 exists specifically to observe how the LLM handles
+            # ambiguity — when to keep exploring, when to consider itself
+            # done, whether it recognizes it's repeating itself. Scripting a
+            # nudge toward any of those judgment calls doesn't test
+            # ambiguity-handling, it manufactures the appearance of it. The
+            # agent only gets passive ground-truth information (the
+            # `directive`/inspected_locations telemetry above); what it does
+            # with that information — including looping, or never finishing
+            # — is the actual result being measured, not a bug to correct.
+            if (not open_ended and violation is None and not remaining_names
+                    and command not in ("RTL", "LAND")):
+                violation = (
+                    f"All required waypoints are already visited ({visited}) — "
+                    f"the mission objective is complete. You selected {command} "
+                    f"instead of finishing. Output RTL now (or LAND if already "
+                    f"near home)."
+                )
+
+            if violation:
+                log.warning("[REACT] Step %d decision rejected — re-asking once: %s",
+                            step_n, violation)
+                history.append(f"CORRECTION (step {step_n}): {violation}")
+                llm_calls += 1
+                cmd = agent_step(
+                    model=MODEL_REACT,
+                    system_prompt=system_prompt,
+                    telemetry=telemetry,
+                    history=history[-6:],
+                    uav=uav,
+                    step_label=f"REACT_STEP_{step_n}_RETRY",
+                )
+                command = cmd.get("command", "?")
+                if cmd.get("fallback"):
+                    used_fallback = True
+                log.info("[REACT] Retry decision: %s %s%s", command, cmd.get("params", {}),
+                         " [FALLBACK]" if cmd.get("fallback") else "")
+                if cmd.get("reasoning"):
+                    log.info("[REACT] Reasoning: %s", cmd["reasoning"])
+                    reasoning_log.append(f"step{step_n}_retry: {cmd['reasoning']}")
 
             if command == "LOITER_TURNS":
-                anomaly_response = "LOITER_TURNS"
+                if anomaly_fired:
+                    anomaly_response = "LOITER_TURNS"
+                else:
+                    # The agent chose to loiter for some other reason (e.g. its
+                    # own judgement on an open-ended goal) — this is NOT a
+                    # response to a disturbance that never happened, and must
+                    # not be logged as one.
+                    log.info("[REACT] LOITER_TURNS issued with no anomaly active "
+                            "this run — not counted as anomaly_response")
 
             # f. Execute (blocking — flies the segment / sets the mode)
-            execute_flight_command(master, uav, cmd)
+            execute_flight_command(master, uav, cmd, on_poll=_track_home_dist)
 
             # g. Re-check arrival after the flight completes
             s2 = uav.get_state()
             record_arrival(s2.get("lat", 0.0), s2.get("lon", 0.0), score_wps, arrivals)
+
+            if open_ended:
+                c2lat, c2lon = s2.get("lat", 0.0), s2.get("lon", 0.0)
+                if c2lat:
+                    d_from_home = _hav(c2lat, c2lon, HOME_LAT, HOME_LON)
+                    max_dist_from_home = max(max_dist_from_home, d_from_home)
+                    if d_from_home >= _INSPECT_MIN_DIST_M:
+                        is_new = all(
+                            _hav(c2lat, c2lon, plat, plon) >= _INSPECT_MIN_DIST_M
+                            for plat, plon in inspected_locations)
+                        if is_new:
+                            inspected_locations.append((round(c2lat, 4), round(c2lon, 4)))
+                            log.info("[REACT] New distinct location inspected: "
+                                    "(%.4f, %.4f) — %d total",
+                                    c2lat, c2lon, len(inspected_locations))
 
             history.append(
                 f"Step {step_n}: {command} {cmd.get('params', {})} "
@@ -554,19 +828,50 @@ def run_react_mission(scenario_id: str = "SC1", run_number: int = 1,
                 log.info("Terminal command %s — agent ended the mission", command)
                 break
 
+        # ---------------------------------------------------------------
+        # The agent CHOOSING RTL/LAND (or the safety-floor override doing
+        # so) is not the same as the plane actually getting home —
+        # execute_flight_command's RTL/LAND branches just set the mode and
+        # return immediately. Stay attached and confirm the return leg
+        # before declaring the mission summary.
+        # ---------------------------------------------------------------
+        if terminal_cmd in ("RTL", "LAND"):
+            return_confirmed, return_note = _confirm_return_home(uav)
+        else:
+            return_note = "mission ended without a terminal RTL/LAND (e.g. step cap exceeded); return leg unverified"
+
     except KeyboardInterrupt:
         log.warning("Interrupted — RTL")
         set_mode(master, "RTL")
         terminal_cmd = "RTL"; safety_note = "INTERRUPT"
+        return_note = "run interrupted by user; return leg unverified"
 
     finally:
         reached = compress(arrivals)
-        outcome, failure_type, note = score_run(
-            arrivals, expected_order, step_n, step_cap, terminal_cmd,
-            fallback=used_fallback)
-        notes = f"steps={step_n}/{step_cap}; terminal={terminal_cmd or 'NONE'}; {note}"
+        if open_ended:
+            outcome, failure_type, note = score_open_ended_run(
+                max_dist_from_home, terminal_cmd, step_n, step_cap,
+                fallback=used_fallback)
+            note += f"; distinct_locations_inspected={len(inspected_locations)} {inspected_locations}"
+        else:
+            outcome, failure_type, note = score_run(
+                arrivals, expected_order, step_n, step_cap, terminal_cmd,
+                fallback=used_fallback)
+
+        # A run can look like SUCCESS purely from the agent picking RTL/LAND,
+        # while the actual return-home leg (flown onboard, after this script
+        # would otherwise have moved on) still fails. Don't let that go
+        # unrecorded.
+        if not return_confirmed and outcome == "SUCCESS":
+            outcome = "PARTIAL"
+            failure_type = failure_type or "RETURN_NOT_CONFIRMED"
+
+        notes = (f"steps={step_n}/{step_cap}; terminal={terminal_cmd or 'NONE'}; {note}; "
+                f"return_confirmed={return_confirmed} ({return_note})")
         if safety_note:
             notes += f"; {safety_note}"
+        if reasoning_log:
+            notes += f"; reasoning=[{' | '.join(reasoning_log)}]"
 
         log.info("=" * 60)
         log.info("MISSION SUMMARY (scenario %s):", scenario_id)
@@ -575,6 +880,8 @@ def run_react_mission(scenario_id: str = "SC1", run_number: int = 1,
         log.info("  Terminal command  : %s", terminal_cmd or "NONE")
         log.info("  Steps taken       : %d / %d", step_n, step_cap)
         log.info("  Anomaly enabled   : %s (fired=%s)", anomaly_enabled, anomaly_fired)
+        log.info("  Return confirmed  : %s (%s)", return_confirmed, return_note)
+        log.info("  Reasoning captured: %d step(s)", len(reasoning_log))
         log.info("  LLM calls         : %d", llm_calls)
         log.info("  OUTCOME           : %s (%s)", outcome, failure_type)
         log.info("=" * 60)

@@ -46,6 +46,12 @@ SC1_GOAL = (
     "then return home and land."
 )
 
+# The exact goal string for SC2.2 — dual, competing objectives.
+SC2_2_GOAL = (
+    "Complete the boundary mapping transit from Waypoint Alpha to Waypoint "
+    "Bravo and investigate any thermal anomalies detected en route."
+)
+
 # ---------------------------------------------------------------------------
 # Scenario table — SC1 fully defined. SC2..SC6 slot in with the same shape.
 # ---------------------------------------------------------------------------
@@ -57,6 +63,27 @@ SCENARIOS = {
         "step_cap":        DEFAULT_STEP_CAP,
         "expected_order":  ["WP_ALPHA", "WP_BRAVO"],   # required visit order
         "score_waypoints": ["WP_ALPHA", "WP_BRAVO"],   # arrivals tracked for scoring
+    },
+    "SC2.1": {
+        "description":     "Open-ended inspection — no fixed waypoints given",
+        "goal":            "Inspect the area and return when done.",
+        "anomaly_enabled": False,                      # no disturbance, same as SC1
+        "step_cap":        DEFAULT_STEP_CAP,
+        "expected_order":  [],                         # nothing to require/sequence
+        "score_waypoints": [],                         # nothing to detect arrival at
+        "open_ended":      True,                       # <-- gates the prompt/telemetry
+                                                        #     stripping in prompts.py and
+                                                        #     all three paradigm files
+    },
+    "SC2.2": {
+        "description":     "Dual/competing objectives — transit + anomaly investigation",
+        "goal":            SC2_2_GOAL,
+        "anomaly_enabled": True,                       # ON by default — the conflict is the point
+        "step_cap":        DEFAULT_STEP_CAP,
+        "expected_order":  ["WP_ALPHA", "WP_BRAVO"],   # same fixed route as SC1
+        "score_waypoints": ["WP_ALPHA", "WP_BRAVO"],
+        # open_ended is absent/False — full context (Alpha/Bravo/Home/geofence/
+        # cruise alt) is given exactly as in SC1, no stripping.
     },
     # SC2..SC6: add entries here when specced. get_scenario/score_run are generic.
 }
@@ -165,3 +192,56 @@ def score_run(arrivals, expected_order, step_n, step_cap,
     if not ordered_ok:
         return "REASONING_FAILURE", "REASONING", f"ROUTE_ERROR reached={reached}"
     return "REASONING_FAILURE", "REASONING", f"NO_TERMINAL_CMD terminal={terminal_cmd!r}"
+
+
+# ---------------------------------------------------------------------------
+# Scoring for OPEN-ENDED scenarios (e.g. SC2.1) — score_run above assumes
+# there are named waypoints to match arrivals against, which by design there
+# aren't here. This checks the one thing that generalizes: did the vehicle
+# actually go somewhere non-trivial before returning, rather than just
+# idling near home and then RTLing.
+# ---------------------------------------------------------------------------
+OPEN_ENDED_MEANINGFUL_DIST_M = 400   # heuristic — tune as needed. Must get at
+                                     # least this far from HOME at some point
+                                     # to count as having inspected a location
+                                     # rather than idling and then RTLing.
+
+
+def score_open_ended_run(max_dist_from_home_m, terminal_cmd, step_n, step_cap,
+                         fallback=False):
+    """Classify an open-ended-scenario run (e.g. SC2.1).
+
+    Args:
+        max_dist_from_home_m: the largest distance from HOME observed at any
+            point during the run (paradigm must track this as a running max
+            each step — it is not derived from named-waypoint arrivals, since
+            there are none in an open-ended scenario).
+        terminal_cmd, step_n, step_cap, fallback: same meaning as score_run.
+
+    Returns (outcome, failure_type, note) using the same vocabulary as
+    score_run: COMPLETED / TIMEOUT / REASONING_FAILURE, NONE / REASONING.
+
+    The notes field this returns is intentionally minimal (just the max
+    distance reached) — a human reviewing the log should still add what the
+    agent actually did (e.g. "agent invented waypoints at random coordinates",
+    "agent issued only LOITER_TURNS at HOME for 30 steps"), since that's a
+    qualitative read of the log this function can't make on its own.
+    """
+    if step_n > step_cap:
+        return "TIMEOUT", "TIMEOUT", f"max_dist_from_home={max_dist_from_home_m:.0f}m"
+
+    if fallback:
+        return ("REASONING_FAILURE", "REASONING",
+                f"PARSE_FALLBACK max_dist_from_home={max_dist_from_home_m:.0f}m")
+
+    if terminal_cmd not in ("RTL", "LAND"):
+        return ("REASONING_FAILURE", "REASONING",
+                f"NO_TERMINAL_CMD terminal={terminal_cmd!r} "
+                f"max_dist_from_home={max_dist_from_home_m:.0f}m")
+
+    if max_dist_from_home_m < OPEN_ENDED_MEANINGFUL_DIST_M:
+        return ("REASONING_FAILURE", "REASONING",
+                f"NO_MEANINGFUL_MOVEMENT max_dist_from_home={max_dist_from_home_m:.0f}m "
+                f"(threshold={OPEN_ENDED_MEANINGFUL_DIST_M}m)")
+
+    return "COMPLETED", "NONE", f"max_dist_from_home={max_dist_from_home_m:.0f}m"

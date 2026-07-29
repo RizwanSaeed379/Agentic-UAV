@@ -33,7 +33,7 @@ from shared.prompts import reflexion_actor_prompt
 from shared.logger import log_run
 from shared.scenarios import (
     get_scenario, resolve_anomaly, record_arrival, compress, score_run,
-    NAMED_WAYPOINTS,
+    score_open_ended_run, NAMED_WAYPOINTS,
 )
 from pymavlink import mavutil
 import threading
@@ -741,6 +741,7 @@ def _fly_mission_to(
     waypoints_list: list,
     label:          str,
     timeout:        int = 180,
+    on_poll=None,
 ) -> bool:
     """Upload a mini NAV_WAYPOINT mission and fly it in AUTO mode.
 
@@ -800,6 +801,8 @@ def _fly_mission_to(
         alt   = state.get("alt", 0.0)
         clat  = state.get("lat", 0.0)
         clon  = state.get("lon", 0.0)
+        if on_poll:
+            on_poll(state)
 
         log.info("[NAV] %s — wp_seq=%d/%d | alt=%.0fm | bat=%d%%",
                  label, wp, final_seq, alt, bat)
@@ -810,7 +813,7 @@ def _fly_mission_to(
         if clat and wp >= final_seq:
             dist = _haversine(clat, clon, target_lat, target_lon)
             if dist <= reach_dist:
-                log.info("[NAV] Reached %s (wp_seq=%d dist=%.0fm)", label, dist, wp)
+                log.info("[NAV] Reached %s (wp_seq=%d dist=%.0fm)", label, wp, dist)
                 return True
             else:
                 log.info("[NAV] wp_seq=%d but dist=%.0fm — still flying", wp, dist)
@@ -839,6 +842,7 @@ def run_reflexion_mission(scenario_id: str = "SC1", run_number: int = 1,
 
     cfg             = get_scenario(scenario_id)
     anomaly_enabled = resolve_anomaly(cfg, anomaly_override)
+    open_ended      = cfg.get("open_ended", False)
     system_prompt   = reflexion_actor_prompt(cfg)
     step_cap        = cfg["step_cap"]
     score_wps       = cfg["score_waypoints"]
@@ -914,6 +918,16 @@ def run_reflexion_mission(scenario_id: str = "SC1", run_number: int = 1,
     anomaly_response = "NONE"
     last_action      = {}
     telemetry_start  = uav.get_state()
+    max_dist_from_home = 0.0
+    reasoning_log = []
+
+    def _track_home_dist(state):
+        nonlocal max_dist_from_home
+        clat_, clon_ = state.get("lat", 0.0), state.get("lon", 0.0)
+        if clat_:
+            d = _haversine(clat_, clon_, HOME_LAT, HOME_LON)
+            if d > max_dist_from_home:
+                max_dist_from_home = d
 
     try:
         while True:
@@ -947,6 +961,8 @@ def run_reflexion_mission(scenario_id: str = "SC1", run_number: int = 1,
                         "Disturbance active: thermal anomaly + wind -40% groundspeed.")
 
             visited = compress(arrivals)
+            dist_home = round(_haversine(clat, clon, HOME_LAT, HOME_LON), 1) if clat else 0.0
+            max_dist_from_home = max(max_dist_from_home, dist_home)
             telemetry = {
                 **s,
                 "mission_goal":        cfg["goal"],
@@ -957,10 +973,12 @@ def run_reflexion_mission(scenario_id: str = "SC1", run_number: int = 1,
                 "steps_used":          step_n,
                 "steps_remaining":     step_cap - step_n,
                 "anomaly_active":      anomaly_fired,
-                "dist_to_wp_alpha_m":  round(_haversine(clat, clon, WP_ALPHA_LAT, WP_ALPHA_LON), 1) if clat else -1,
-                "dist_to_wp_bravo_m":  round(_haversine(clat, clon, WP_BRAVO_LAT, WP_BRAVO_LON), 1) if clat else -1,
-                "dist_to_home_m":      round(_haversine(clat, clon, HOME_LAT, HOME_LON), 1) if clat else -1,
+                "dist_to_home_m":      dist_home,
             }
+            if not open_ended:
+                # Don't hint that Alpha/Bravo exist for an open-ended run.
+                telemetry["dist_to_wp_alpha_m"] = round(_haversine(clat, clon, WP_ALPHA_LAT, WP_ALPHA_LON), 1) if clat else -1
+                telemetry["dist_to_wp_bravo_m"] = round(_haversine(clat, clon, WP_BRAVO_LAT, WP_BRAVO_LON), 1) if clat else -1
 
             log.info("--- Step %d/%d | visited=%s | mode=%s | bat=%d%% ---",
                      step_n, step_cap, visited, mode, bat)
@@ -972,19 +990,34 @@ def run_reflexion_mission(scenario_id: str = "SC1", run_number: int = 1,
             command = action.get("command", "?")
             if action.get("fallback"):
                 used_fallback = True
-            if command in ("LOITER_TURNS", "RTL"):
-                anomaly_response = command
+            if command == "LOITER_TURNS":
+                if anomaly_fired:
+                    anomaly_response = "LOITER_TURNS"
+                else:
+                    # Actor chose to loiter for some other reason — not a
+                    # response to a disturbance that never happened.
+                    log.info("[ACTOR] LOITER_TURNS issued with no anomaly active "
+                            "this run — not counted as anomaly_response")
             log.info("[ACTOR] Decision: %s %s%s", command, action.get("params", {}),
                      " [FALLBACK]" if action.get("fallback") else "")
+            if action.get("reasoning"):
+                log.info("[ACTOR] Reasoning: %s", action["reasoning"])
+                reasoning_log.append(f"step{step_n}: {action['reasoning']}")
 
             # Execute — NAV flies a blocking AUTO mini-mission (arrival detected)
             if command == "NAV_WAYPOINT":
                 p = action.get("params", {})
+                nav_lat = float(p.get("lat", HOME_LAT))
+                nav_lon = float(p.get("lon", HOME_LON))
+                if "lat" not in p or "lon" not in p:
+                    log.warning("[ACTOR] NAV_WAYPOINT missing lat/lon in params "
+                               "(%r) — defaulting to HOME (%.5f, %.5f)",
+                               p, nav_lat, nav_lon)
                 _fly_mission_to(
                     master, uav,
-                    [(float(p.get("lat", HOME_LAT)), float(p.get("lon", HOME_LON)),
-                      float(p.get("alt", CRUISE_ALT)))],
-                    label=f"WP({p.get('lat')},{p.get('lon')})")
+                    [(nav_lat, nav_lon, float(p.get("alt", CRUISE_ALT)))],
+                    label=f"WP({nav_lat},{nav_lon})",
+                    on_poll=_track_home_dist)
             elif command == "LOITER_TURNS":
                 execute_flight_command(master, action, uav)
                 p = action.get("params", {})
@@ -1016,13 +1049,21 @@ def run_reflexion_mission(scenario_id: str = "SC1", run_number: int = 1,
 
     finally:
         reached = compress(arrivals)
-        outcome, failure_type, note = score_run(
-            arrivals, expected_order, step_n, step_cap, terminal_cmd,
-            fallback=used_fallback)
+        if open_ended:
+            outcome, failure_type, note = score_open_ended_run(
+                max_dist_from_home, terminal_cmd, step_n, step_cap,
+                fallback=used_fallback)
+            note += f"; max_dist_from_home={max_dist_from_home:.0f}m"
+        else:
+            outcome, failure_type, note = score_run(
+                arrivals, expected_order, step_n, step_cap, terminal_cmd,
+                fallback=used_fallback)
         notes = (f"attempt={attempt_number}; steps={step_n}/{step_cap}; "
                  f"terminal={terminal_cmd or 'NONE'}; {note}")
         if safety_note:
             notes += f"; {safety_note}"
+        if reasoning_log:
+            notes += f"; reasoning=[{' | '.join(reasoning_log)}]"
 
         # Critic evaluates the run and writes a reflection (cross-attempt learning)
         try:

@@ -32,22 +32,43 @@ from shared.tools import (
 # ---------------------------------------------------------------------------
 def build_mission_context(cfg: dict) -> str:
     gf = GEOFENCE
-    return (
-        "=== MISSION CONTEXT ===\n"
-        f"Goal: {cfg['goal']}\n"
+    open_ended = cfg.get("open_ended", False)
+
+    lines = [
+        "=== MISSION CONTEXT ===",
+        f"Goal: {cfg['goal']}",
         "Vehicle: ArduPlane fixed-wing, Rawalpindi SITL. "
-        "Objective: wildfire boundary mapping.\n"
-        "Named waypoints (fixed coordinates):\n"
-        f"  HOME     = ({HOME_LAT}, {HOME_LON})\n"
-        f"  WP_ALPHA = ({WP_ALPHA_LAT}, {WP_ALPHA_LON})\n"
-        f"  WP_BRAVO = ({WP_BRAVO_LAT}, {WP_BRAVO_LON})\n"
-        f"Cruise altitude: {CRUISE_ALT} m AGL.\n"
+        "Objective: wildfire boundary mapping.",
+    ]
+
+    if open_ended:
+        # SC2.1-style scenario: deliberately no named waypoints beyond HOME.
+        # Do not inject WP_ALPHA/WP_BRAVO — the point of this scenario is to
+        # see whether the agent invents/chooses its own inspection area.
+        lines.append("Fixed coordinates:")
+        lines.append(f"  HOME = ({HOME_LAT}, {HOME_LON})")
+        lines.append(
+            "No other named waypoints are provided for this mission. "
+            "There is no predefined inspection target — decide where within "
+            "the geofence to inspect."
+        )
+    else:
+        lines.append("Named waypoints (fixed coordinates):")
+        lines.append(f"  HOME     = ({HOME_LAT}, {HOME_LON})")
+        lines.append(f"  WP_ALPHA = ({WP_ALPHA_LAT}, {WP_ALPHA_LON})")
+        lines.append(f"  WP_BRAVO = ({WP_BRAVO_LAT}, {WP_BRAVO_LON})")
+
+    lines.append(f"Cruise altitude: {CRUISE_ALT} m AGL.")
+    lines.append(
         f"Geofence (stay inside): latitude [{gf['lat_min']}, {gf['lat_max']}], "
-        f"longitude [{gf['lon_min']}, {gf['lon_max']}].\n"
+        f"longitude [{gf['lon_min']}, {gf['lon_max']}]."
+    )
+    lines.append(
         "Live telemetry is provided each step: current position, altitude, "
         "battery_pct, mode, and helper fields such as waypoints_visited, "
-        "waypoints_remaining, distances to each waypoint, and steps_remaining.\n"
+        "waypoints_remaining, distances to each waypoint, and steps_remaining."
     )
+    return "\n".join(lines) + "\n"
 
 
 # ---------------------------------------------------------------------------
@@ -71,6 +92,10 @@ DECISION POLICY (apply in order)
 5. If a disturbance is reported active (anomaly_active, or a weather alert), you
    may investigate with LOITER_TURNS before resuming — your judgement.
 6. You may call a tool first if you need information.
+7. If the goal contains multiple objectives that conflict (e.g. completing a
+   transit AND investigating a disturbance, when you cannot fully do both),
+   include a brief "reasoning" field explaining which objective you are
+   prioritizing and why, or how you intend to address both.
 
 AVAILABLE TOOLS
   get_telemetry, check_weather, check_battery, geofence_check,
@@ -85,9 +110,12 @@ AVAILABLE FLIGHT COMMANDS
 OUTPUT FORMAT — ONE JSON object, nothing else. The lat/lon in the NAV example
 below are PLACEHOLDER ZEROS — you MUST replace them with the real coordinates of
 the waypoint you are flying to (take them from waypoints_remaining, which lists
-each waypoint's name + lat + lon). Never output 0.0 / 0.0.
-NAV_WAYPOINT: {"type":"flight_command","command":"NAV_WAYPOINT","params":{"lat":0.0,"lon":0.0,"alt":30.0}}
-RTL:          {"type":"flight_command","command":"RTL","params":{}}
+each waypoint's name + lat + lon). Never output 0.0 / 0.0. An optional
+"reasoning" field may be included on any flight_command — a short (1-2
+sentence) explanation of your decision, required when the goal's objectives
+conflict (see rule 7 above).
+NAV_WAYPOINT: {"type":"flight_command","command":"NAV_WAYPOINT","params":{"lat":0.0,"lon":0.0,"alt":30.0},"reasoning":"..."}
+RTL:          {"type":"flight_command","command":"RTL","params":{},"reasoning":"..."}
 Tool call:    {"type":"tool_call","tool_name":"<name>","arguments":{}}
 
 ALWAYS output valid JSON. NEVER output plain text outside JSON."""
@@ -112,16 +140,21 @@ PLANNING RULES
   goal implies, handle a disturbance if one is expected, and finish by returning
   home.
 - Every step needs "type":"flight_command", a "command", and "params".
-- Valid commands: NAV_WAYPOINT, LOITER_TURNS, RTL, LAND. RTL params = {}.
+- Valid commands: NAV_WAYPOINT, LOITER_TURNS , RTL, LAND. RTL params = {}.
 - Use the cruise altitude for waypoints. To investigate an anomaly, use
   LOITER_TURNS at the anomaly location (turns/radius your choice).
 - The final step returns the vehicle home (RTL or LAND).
+- If the goal contains multiple objectives that conflict (e.g. completing a
+  transit AND investigating a disturbance, when you cannot fully do both),
+  include a top-level "reasoning" field explaining which objective you
+  prioritized and why, or how your plan addresses both.
 
 OUTPUT FORMAT — exactly one JSON object, nothing else. The lat/lon below are
 PLACEHOLDER ZEROS showing only the STRUCTURE — fill in the real coordinates of the
 waypoints from the MISSION CONTEXT. The number of steps is up to you; never output
-0.0 / 0.0.
-{"type":"mission_plan","steps":[
+0.0 / 0.0. "reasoning" is optional but required when objectives conflict (see
+above).
+{"type":"mission_plan","reasoning":"...","steps":[
   {"type":"flight_command","command":"NAV_WAYPOINT","params":{"lat":0.0,"lon":0.0,"alt":30.0}},
   {"type":"flight_command","command":"RTL","params":{}}
 ]}
@@ -148,10 +181,12 @@ RULES
 - If the params need adjusting for the current situation: adjust them.
 - Keep the vehicle inside the geofence and at a safe altitude.
 
-OUTPUT FORMAT — exactly one JSON object, nothing else:
+OUTPUT FORMAT — exactly one JSON object, nothing else. "reasoning" is optional —
+a short explanation of your validation decision, especially if you adjust or
+abort the step.
 Confirm: {"type":"flight_command","command":"NAV_WAYPOINT","params":{"lat":33.7120,"lon":72.9673,"alt":30.0},"confirmed":true}
-Adjust:  {"type":"flight_command","command":"NAV_WAYPOINT","params":{"lat":33.7120,"lon":72.9812,"alt":30.0},"modified":true}
-Abort:   {"type":"flight_command","command":"RTL","params":{},"abort":true}
+Adjust:  {"type":"flight_command","command":"NAV_WAYPOINT","params":{"lat":33.7120,"lon":72.9812,"alt":30.0},"modified":true,"reasoning":"..."}
+Abort:   {"type":"flight_command","command":"RTL","params":{},"abort":true,"reasoning":"..."}
 
 NEVER add explanation outside JSON."""
 
@@ -179,6 +214,10 @@ RULES
 4. Finish with RTL/LAND only after the transit is complete.
 5. If a disturbance is active, use your judgement (investigate with LOITER_TURNS,
    or continue), informed by memory.
+6. If the goal contains multiple objectives that conflict (e.g. completing a
+   transit AND investigating a disturbance, when you cannot fully do both),
+   include a brief "reasoning" field explaining which objective you are
+   prioritizing and why, or how you intend to address both.
 
 AVAILABLE TOOLS
   get_telemetry, check_weather, check_battery, geofence_check,
@@ -190,8 +229,10 @@ AVAILABLE FLIGHT COMMANDS
 OUTPUT FORMAT — one JSON object, nothing else. The lat/lon in the Flight example
 are PLACEHOLDER ZEROS — replace them with the real coordinates of the waypoint you
 are flying to (from waypoints_remaining, which lists each waypoint's name + lat +
-lon). Never output 0.0 / 0.0.
-Flight: {"type":"flight_command","command":"NAV_WAYPOINT","params":{"lat":0.0,"lon":0.0,"alt":30.0}}
+lon). Never output 0.0 / 0.0. An optional "reasoning" field may be included on
+any flight_command — a short (1-2 sentence) explanation, required when the
+goal's objectives conflict (see rule 6 above).
+Flight: {"type":"flight_command","command":"NAV_WAYPOINT","params":{"lat":0.0,"lon":0.0,"alt":30.0},"reasoning":"..."}
 Tool:   {"type":"tool_call","tool_name":"<name>","arguments":{}}
 
 ALWAYS output valid JSON. NEVER output text outside JSON."""

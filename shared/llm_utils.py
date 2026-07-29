@@ -31,17 +31,11 @@ MODEL_ACTOR    = "qwen2.5:7b"
 
 # keep localhost for local CPU.
 
-# _BASE_URL = os.environ.get(
-#     'OLLAMA_URL',
-#     'http://localhost:11434/api/generate'
-# )
-_BASE_URL = "https://treasure-calculations-ate-interest.trycloudflare.com/api/generate"
-_TIMEOUT  = 60    # seconds — GPU inference is fast; 60s is generous headroom
-
-_HEADERS = {
-    "Content-Type": "application/json",
-    # "ngrok-skip-browser-warning": "true",  <-- REMOVE
-}
+_BASE_URL = os.environ.get(
+    'OLLAMA_URL',
+    'http://localhost:11434/api/generate'
+)
+_TIMEOUT = int(os.environ.get('OLLAMA_TIMEOUT', 30))
 
 
 # ---------------------------------------------------------------------------
@@ -77,8 +71,8 @@ def call_ollama(model_name: str, prompt: str, temperature: float = 0.0) -> str:
         resp = requests.post(
             _BASE_URL,
             json=payload,
-            timeout=_TIMEOUT,
-            headers=_HEADERS
+            timeout=_TIMEOUT
+            
         )
         resp.raise_for_status()
         return resp.json().get("response", "")
